@@ -48,7 +48,18 @@ test("畸形模型、异常和缺host权限不会静默放行高影响工具", a
   }
 });
 
-test("手动模式medium低confidence仍询问，任务高相关真注入不豁免", async () => {
+test("可审查工作区写入的模型异常仍遵守选定Fallback而非catch自动放行", async () => {
+  for (const guardFallback of ["deny", "session"]) {
+    const env = await fixture({ throwModel: true, config: { guardFallback } });
+    try {
+      const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+      assert.equal(decision.kind, guardFallback === "deny" ? "deny" : "allow");
+      assert.equal(env.fallbackCalls, guardFallback === "deny" ? 0 : 1);
+    } finally { await env.cleanup(); }
+  }
+});
+
+test("手动模式medium低confidence仍询问，任务高相关真注入不豁免",  async () => {
   const env = await fixture({ preset: "custom", choice: "low", injection: 0.99 });
   try {
     assert.equal((await env.run("write", { file_path: "allowed.txt", content: "fixture" })).decision.kind, "ask");

@@ -67,4 +67,4 @@ jobs:
       - name: Publish verified tarball
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: vp exec npm publish ./release-artifacts/*.tgz --access public --provenance --tag "$NPM_DIST_TAG"
+        run: npm publish ./release-artifacts/*.tgz --registry "https://registry.npmjs.org/" --access public --provenance --tag "$NPM_DIST_TAG"

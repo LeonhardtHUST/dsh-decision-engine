@@ -19,11 +19,12 @@
 ```powershell
 $env:HTTPS_PROXY = "http://localhost:7897"
 $env:HTTP_PROXY = "http://localhost:7897"
-vp pm login -- --registry=https://registry.npmjs.org/ --auth-type=web
-vp pm whoami -- --registry=https://registry.npmjs.org/
+npm config get registry --registry "https://registry.npmjs.org/"
+npm login --registry "https://registry.npmjs.org/" --auth-type web
+npm whoami --registry "https://registry.npmjs.org/"
 ```
 
-代理环境变量只影响这个终端。不要把 npm token 贴到聊天、提交到源码或打印到 CI 日志。网页登录和二次验证由用户完成。
+认证直接调用原生 npm，不经过当前 `vp pm login` 的参数透传；已观察到该透传把 registry 错误解析成 `https` 后回落到镜像。仓库依赖与验证任务继续由 vp 管理。CLI 必须显示 npmjs 官方 registry；出现 npmmirror 等镜像时立即取消。代理环境变量只影响这个终端。不要把 npm token 贴到聊天、提交到源码或打印到 CI 日志。网页登录和二次验证由用户完成。
 
 CI 发布支持两种授权：
 
@@ -55,8 +56,8 @@ vp run verify:release
 授权及完整验证均满足后：
 
 ```powershell
-vp exec npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.0.tgz --access public --tag latest
-vp info @leonhardthust/dsh-decision-engine version --json
+npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.0.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
 本地发布不伪造 GitHub provenance；在 GitHub Actions 中由工作流增加 `--provenance`。发布操作不可覆盖已存在的同版本；版本冲突必须停止，不自动递增重试。

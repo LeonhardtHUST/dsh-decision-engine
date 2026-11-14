@@ -60,5 +60,7 @@ test("CI保留完整验证，发布依赖验证成功且凭据只进入最终发
   assert.match(publish, /needs: verify/);
   assert.match(publish, /id-token: write/);
   assert.match(publish, /--provenance/);
+  assert.ok(publish.includes('--registry "https://registry.npmjs.org/"'));
+  assert.doesNotMatch(publish, /npmmirror|vp pm login/);
   assert.doesNotMatch(ci + publish, /continue-on-error|pull_request_target|git push/);
 });

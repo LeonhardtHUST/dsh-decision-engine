@@ -551,11 +551,17 @@ test("统计存储：文件不存在时返回空数组", async () => {
 });
 
 test("统计存储：写盘失败不影响调用方（不抛）", async () => {
-  // 目录指向一个不可写的路径：appendFile 会失败，但 record() 不许抛。
-  const store = new StatsStore({ dir: "/proc/definitely-not-writable" });
-  store.record(rec());
-  await store.flush();
-  assert.ok(store.failed > 0, "应记录失败条数");
+  const dir = await mkdtemp(join(tmpdir(), "de-stats-failure-"));
+  try {
+    const blockedDirectory = join(dir, "not-a-directory");
+    await writeFile(blockedDirectory, "fixture");
+    const store = new StatsStore({ dir: blockedDirectory });
+    store.record(rec());
+    await store.flush();
+    assert.ok(store.failed > 0, "应记录失败条数");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 test("回填：从旧遥测推算历史统计，并标明是推算值", async () => {

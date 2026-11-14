@@ -89,14 +89,14 @@
   "scripts": {
     "prepare": "vp config --no-agent",
     "commitlint": "commitlint",
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-timeout=60000 test/*.test.js",
     "verify:endpoint": "node scripts/verify-endpoint.mjs",
     "verify:wiring": "node scripts/verify-wiring.mjs",
     "verify:guard": "node scripts/verify-guard-scenarios.mjs bench/guard-revision",
     "verify:package": "node scripts/verify-package.mjs",
     "verify:release": "node scripts/verify-release.mjs",
     "pack:release": "vp pm pack --pack-destination release-artifacts --json",
-    "verify": "node --test test/*.test.js && node scripts/verify-wiring.mjs"
+    "verify": "node --test --test-timeout=60000 test/*.test.js && node scripts/verify-wiring.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",

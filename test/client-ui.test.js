@@ -120,6 +120,10 @@ async function render(status, options = {}) {
   const unique = `\n// test-instance-${loadSeq}\n`;
   const dataUrl = `data:text/javascript;base64,${Buffer.from(source + unique, "utf8").toString("base64")}`;
 
+  // 主题探针（DEC-061）要看 `document`：`options.hostBackground` 说明
+  // 「宿主的基色会被算成什么」，这里造一个只够探针用的最小 document。
+  const host = installFakeHost(options.hostBackground);
+
   const slots = { [SLOTS.status]: status, ...(options.slots ?? {}) };
 
   let stateIndex = 0;
@@ -216,8 +220,66 @@ async function render(status, options = {}) {
   await import(dataUrl);
   assert.ok(typeof component === "function", "client bundle 未注册配置组件");
 
-  const tree = component({ view: "config" });
-  return { tree, text: collectText(tree).join("\n"), controls: collectControls(tree), i18n };
+  let tree;
+  try {
+    tree = component({ view: "config" });
+  } finally {
+    // 探针只在「组件渲染」这一段需要 document：渲染函数里探一次就够了。
+    host.restore();
+  }
+  return { tree, text: collectText(tree).join("\n"), controls: collectControls(tree), i18n, host };
+}
+
+/**
+ * 造一个「只够主题探针用」的最小 `document`（DEC-061）。
+ *
+ * 探针（`hostColorScheme`）只需要三件事：`document.body.appendChild`、
+ * `document.createElement`、`getComputedStyle(el).backgroundColor`。多给
+ * 反而不像真环境——这里要钉的是「读到什么颜色就判成什么主题」以及
+ * 「探针用完必须收掉」，不是浏览器会不会画那个 0 尺寸的 span。
+ *
+ * @param backgroundColor - `getComputedStyle` 返回的底色。不传（或传非字符串）
+ *   就**根本不装** document：模拟 Node 渲染测试 / 宿主没给令牌时的
+ *   「探不到」路径。
+ * @returns `{ appended, restore }`：被 append 的探针节点（用来断言收尾）
+ *   与还原全局对象的函数。
+ */
+function installFakeHost(backgroundColor) {
+  if (typeof backgroundColor !== "string") {
+    return { appended: [], restore() {} };
+  }
+  const previousDocument = globalThis.document;
+  const previousComputedStyle = globalThis.getComputedStyle;
+  const appended = [];
+  globalThis.document = {
+    body: {
+      appendChild(node) {
+        appended.push(node);
+        return node;
+      },
+      removeChild() {},
+    },
+    createElement(tag) {
+      return {
+        tagName: String(tag).toUpperCase(),
+        style: { cssText: "" },
+        removed: false,
+        remove() {
+          this.removed = true;
+        },
+      };
+    },
+  };
+  globalThis.getComputedStyle = () => ({ backgroundColor });
+  return {
+    appended,
+    restore() {
+      if (previousDocument === undefined) delete globalThis.document;
+      else globalThis.document = previousDocument;
+      if (previousComputedStyle === undefined) delete globalThis.getComputedStyle;
+      else globalThis.getComputedStyle = previousComputedStyle;
+    },
+  };
 }
 
 /** 递归收集渲染树里的文本（含 value / placeholder 属性）。 */
@@ -3341,3 +3403,104 @@ test("守卫关闭时：工具授权三态禁用，且首句说明没有拦截�
     assert.equal(button.props.disabled, true, `守卫关闭时「${label}」应禁用（点了也不会有拦截）`);
   }
 });
+
+/* ============================================================
+ * 原生下拉弹层（DEC-061）
+ *
+ * 症状：深色主题下 `<select>` 的弹层是白的，选项文字继承页面的白 →
+ * **白底白字**，四个选项一个都看不见（用户截图只剩一条蓝色高亮）。
+ *
+ * 修法两半，测试也分两半：
+ *   1. 颜色落到 `option` 上（宿主令牌 + 成对的系统色兜底）——样式表契约；
+ *   2. `color-scheme` 由主题探针写进 `.de-cfg` 的 `--de-select-scheme`
+ *      ——探针行为 + 渲染接线。
+ * 只测其中一半都不够：没有 1 时弹层行没底色，没有 2 时弹层外框与滚动条
+ * 还是浅色的。
+ * ============================================================ */
+
+test("样式表：原生下拉的选项自带不透明底色与主文本色，且兜底成对", () => {
+  const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
+  // 正则钉住「令牌 + 兜底」这一对。只写 `var(--x)` 不给兜底时，宿主一旦
+  // 改名就退化成「没有背景色」——那正是这次 bug 的形态。
+  assert.match(
+    source,
+    /\.de-cfg select option\{background-color:var\(--dsw-alias-bg-layer-2,Canvas\);color:var\(--dsw-alias-label-primary,CanvasText\)\}/,
+    "option 必须显式给底色与文字色（深色主题下白底白字的回归守卫）",
+  );
+  assert.match(
+    source,
+    /\.de-cfg select\{color-scheme:var\(--de-select-scheme,light dark\)\}/,
+    "select 的 color-scheme 必须跟着探针走，并保留 light dark 兜底",
+  );
+});
+
+test("主题探针：深色底判 dark、浅色底判 light、透明底判「探不到」", async () => {
+  const { i18n } = await render(stateWith({}));
+  assert.equal(typeof i18n.hostColorScheme, "function", "hostColorScheme 应挂在 i18n 探针上");
+  assert.equal(typeof i18n.parseCssRgb, "function", "parseCssRgb 应挂在 i18n 探针上");
+
+  // 探不到：Node 渲染测试里没有 document（也是宿主没给令牌时的形态）。
+  assert.equal(i18n.hostColorScheme(), null, "没有 document 时必须返回 null");
+
+  const dark = installFakeHost("rgb(19, 19, 22)");
+  try {
+    assert.equal(i18n.hostColorScheme(), "dark");
+    // 探针用完必须收掉：留着会在宿主的 DOM 与无障碍树里多一个节点。
+    assert.equal(dark.appended.length, 1, "应只插一个探针");
+    assert.equal(dark.appended[0].removed, true, "探针用完必须从 DOM 里移除");
+  } finally {
+    dark.restore();
+  }
+
+  const light = installFakeHost("rgb(247, 247, 248)");
+  try {
+    assert.equal(i18n.hostColorScheme(), "light");
+  } finally {
+    light.restore();
+  }
+
+  // 透明底（宿主没定义 bg-base 时的计算值）判不出深浅，必须当「探不到」：
+  // 拿它猜会把深色主题误判成浅色，等于把 bug 又装回去。
+  const transparent = installFakeHost("rgba(0, 0, 0, 0)");
+  try {
+    assert.equal(i18n.hostColorScheme(), null);
+  } finally {
+    transparent.restore();
+  }
+
+  // 通道解析：rgba 的第四个分量是 alpha；半透明与读不懂的写法一律 null。
+  assert.deepEqual(i18n.parseCssRgb("rgb(1, 2, 3)"), [1, 2, 3]);
+  assert.deepEqual(i18n.parseCssRgb("rgba(19, 19, 22, 0.9)"), [19, 19, 22]);
+  assert.equal(i18n.parseCssRgb("rgba(0, 0, 0, 0.1)"), null);
+  assert.equal(i18n.parseCssRgb("transparent"), null);
+  assert.equal(i18n.parseCssRgb(""), null);
+});
+
+/** `.de-cfg` 根节点：`--de-select-scheme` 写在它的 style 上。 */
+function configContainer(tree) {
+  const container = findNode(tree, (node) => node.type === "div" && node.props?.className === "de-cfg");
+  assert.ok(container !== null, "没找到 .de-cfg 容器");
+  return container;
+}
+
+test("深色宿主：.de-cfg 把 --de-select-scheme 设成 dark", async () => {
+  const { tree } = await render(stateWith({}), { hostBackground: "rgb(19, 19, 22)" });
+  assert.equal(
+    configContainer(tree).props.style?.["--de-select-scheme"],
+    "dark",
+    "深色宿主下弹层必须按深色画，否则又是白底白字",
+  );
+});
+
+test("浅色宿主：.de-cfg 把 --de-select-scheme 设成 light", async () => {
+  const { tree } = await render(stateWith({}), { hostBackground: "rgb(250, 250, 251)" });
+  assert.equal(configContainer(tree).props.style?.["--de-select-scheme"], "light");
+});
+
+test("探不到宿主基色：不写 --de-select-scheme，交给 CSS 的 light dark 兜底", async () => {
+  // 没有 document（或令牌缺失）时不能瞎猜：写错比不写更糟——写错就是
+  // 「深色界面配浅色弹层」，不写则是浏览器按系统偏好判，至少不更差。
+  const { tree } = await render(stateWith({}));
+  assert.equal(configContainer(tree).props.style, undefined, "探不到时不该写一个猜出来的值");
+});
+

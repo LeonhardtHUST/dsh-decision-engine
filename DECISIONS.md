@@ -2,6 +2,92 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-061 深色主题下原生下拉弹层白底白字：选项自带底色 + 主题探针决定 color-scheme（2026-11-14）
+
+**背景**：用户报「插件页面在 dark mode 状态下 dropdown select 显示不好」，附截图：
+展开的弹层是白的，能看清的只有一条蓝色高亮的「沿用当前会话模型（默认）」，
+其余三项（改用指定模型 / 放行 / 拒绝）几乎看不见。
+
+**根因**：不是配色没调好，而是**原生 `<select>` 的弹层根本不在页面的绘制上下文里**。
+
+1. 弹层由浏览器单独绘制：它**不继承页面的背景**（页面是深色，弹层默认浅色 = 白），
+   选项行能用的颜色只有 `option` 元素自己的 `background-color` / `color`。
+2. 本面板此前只给 `select` 设了 `background: transparent; color: inherit`（`S.input`）：
+   收起态那一格因此贴合宿主主题，看起来完全正常——**这也正是 bug 藏得深的原因**。
+   但弹层里没有底色，文字又是从页面继承来的白 → **白底白字**。
+3. 蓝色那条能看见，是因为高亮行由浏览器自己上色，不依赖我们的文字色。
+
+**决定**（两半必须同时存在）：
+
+1. **选项自带不透明底色与主文本色**：`.de-cfg select option{background-color:var(--dsw-alias-bg-layer-2,Canvas);color:var(--dsw-alias-label-primary,CanvasText)}`。
+   用宿主令牌（见下面「令牌实测」），fallback 给 **Canvas / CanvasText** 这一对系统色：
+   这一对由浏览器保证互相有对比度，令牌改名或缺失时最坏是「不贴合主题」，不是「看不见」。
+   只写 `var(--x)` 不给 fallback 会退化成这次 bug 的形态，所以测试用正则把两处一起钉住。
+   选 `bg-layer-2` 而不是 `bg-base`：宿主自己就把 `layer-2` 用在**浮层**上
+   （代码查看器、loading 浮条），而弹层正是一层浮在页面上的东西；深色主题下
+   `bg-base` 是 `#151517`、`layer-2` 是 `neutral-bluish-850`，后者与页面有层次差，
+   看起来才像菜单而不是「页面本身」。
+2. **`color-scheme` 跟着宿主主题走**：弹层的外框、圆角边缘与滚动条按 `color-scheme`
+   画，只补选项颜色会得到「深色行 + 白色外框」的半吊子效果。写成
+   `.de-cfg select{color-scheme:var(--de-select-scheme,light dark)}`，
+   变量由渲染时写进 `.de-cfg` 根节点。
+
+**令牌实测**（`app.asar` 里逐字节检索，不是凭记忆写下的名字）：
+
+| 令牌 | 浅色 | 深色 |
+|---|---|---|
+| `--dsw-alias-bg-base` | `neutral-bluish-00` = `#fff` | `neutral-bluish-950` = `#151517` |
+| `--dsw-alias-bg-layer-2` | `neutral-bluish-00` = `#fff` | `neutral-bluish-850` |
+| `--dsw-alias-label-primary` | `neutral-bluish-1000` | `neutral-bluish-50` |
+
+还有一条**影响探针实现的事实**：这批令牌定义在 `body`（深色是
+`body[data-ds-dark-theme]`）上，不在 `:root`。所以探针必须挂到 `document.body`
+才继承得到它们——挂到别处（或读 `documentElement`）会读到空值，探针永远返回
+`null`，等于白做。这一点写进了 `hostColorScheme()` 的注释。
+
+顺带确认：宿主自己会用 `document.documentElement.style.colorScheme` 设 `html` 的
+配色（供滚动条、UA 控件使用），所以我们的 `color-scheme` 在正常路径上与之**同值**、
+不改变观感；它多出来的价值是在宿主那条链路没生效时（Electron 弹层、旧版本）
+仍然按令牌算出的深浅画。
+
+**为什么自己探主题，而不是用 `prefers-color-scheme`**：那个只反映**操作系统**偏好。
+用户可以在 DSH 里单独切主题，两者不一致时它会答错——而答错的后果正是这次要修的
+不可读状态。`hostColorScheme()` 改问宿主自己：造一个 0 尺寸探针挂到 `document.body`，
+用 `var(--dsw-alias-bg-base)` 取**计算值**、按 `0.2126R+0.7152G+0.0722B` 算亮度，
+大于 0.5 判浅色。探针用完立刻 `remove()`（留着等于往宿主的 DOM 与无障碍树里塞节点）。
+
+**探不到就不猜**：没有 `document`（Node 渲染测试）、令牌缺失（计算值是
+`rgba(0,0,0,0)`）、探针被 CSP 拦下——任何一种都返回 `null`，**不写** `--de-select-scheme`，
+让 CSS 的 `light dark` 兜底。写错比不写更糟：写错就是「深色界面配浅色弹层」，
+不写至少不比现状更差。
+
+**每渲染探一次，不缓存**：主题可以在不重载页面的情况下切换，缓存会让弹层永远停在
+旧主题上。探针是一次 0 尺寸元素的 `getComputedStyle`，设置页没有滚动/动画路径，
+代价可忽略；这条权衡写在调用处注释里，避免下一个人「优化」成缓存。
+
+**顺带的重命名**：DEC-051 的 `ensureCfgSectionCss` / `CFG_SECTION_CSS` 改名为
+`ensurePanelCss` / `PANEL_CSS`（style 标签 id 同步改成 `dsh-decision-engine-panel-css`）。
+这张表现在承载两条互不相干的规则（分组折叠 + 下拉弹层），旧名字会让下一个人以为
+下拉那两条规则挂错了地方。注入逻辑没变（幂等 + 全程 try/catch，注不上只是少装饰）。
+
+**验证**：
+- `node --check lib/client.js` 与 `node --check test/client-ui.test.js` 均通过。
+- `node --test test/client-ui.test.js`：**109 项全绿**，含本次新增 5 项——
+  样式表契约（令牌 + 成对兜底，正则同时钉住两条规则）、主题探针三条路径
+  （深底 → dark、浅底 → light、透明底 / 无 document → null）、探针收尾
+  （append 一次且 `remove()` 被调用）、`--de-select-scheme` 的渲染接线
+  （dark / light / 探不到时不写值）。测试用 `installFakeHost()` 造最小
+  document，渲染完立即还原全局对象，不污染其它用例。
+- 全量 `vp run test`：922 项中 **919 通过 / 3 失败**。三条失败是
+  「旧名 startlux.yml 会被改名迁移」「写入的文件权限是 600」「自定义端点生效；
+  状态文件是合法 JSON 且权限收敛」——全部是本机 Windows 权限语义（拿到
+  0666 而不是 0600）导致的**既有**失败，`baseline-tests.log` 与
+  `final-all-tests.log` 里同样这三条，与本次改动无关。
+- **未做真机视觉验收**：深色主题下弹层外框是否完全贴合，仍需一次人工确认
+  （测试只能证明「颜色值传对了」，证明不了 Chromium 弹层怎么画）。
+
+**改动文件**：`lib/client.js`、`test/client-ui.test.js`、`DECISIONS.md`。
+
 ## DEC-060 冷启动尾延迟：预算抬到 20s、只对超时/网络错误重试一次、冷却改半开（2026-11-13）
 
 **背景**：用户报「官方文档页点『发送请求』永远返回 200，但在插件里配好同一个

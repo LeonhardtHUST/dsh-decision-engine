@@ -133,7 +133,9 @@ test("多目标补丁任意一个越界都不能用首个工作区路径掩盖",
 test("Windows大小写、分隔符与驱动器边界按路径规则处理", () => {
   assert.equal(isUnderRoots("c:\\WORK\\repo\\A.txt", ["C:\\work\\repo"], "C:\\work\\repo"), true);
   assert.equal(isUnderRoots("D:\\work\\a.txt", ["C:\\work"], "C:\\work"), false);
-  assert.equal(classifyWorkspaceTarget({ tool: "write", args: { file_path: "C:relative" }, roots: ["C:\\work"], cwd: "C:\\work" }).kind, SCOPE_KINDS.unknown);
+  for (const file_path of ["C:relative", "C:"]) {
+    assert.equal(classifyWorkspaceTarget({ tool: "write", args: { file_path }, roots: ["C:\\work"], cwd: "C:\\work" }).kind, SCOPE_KINDS.unknown);
+  }
 });
 
 // ------------------------------------------------------------ 轮次延续的边界

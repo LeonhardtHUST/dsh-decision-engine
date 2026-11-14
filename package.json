@@ -88,6 +88,7 @@
     "test": "node --test test/",
     "verify:endpoint": "node scripts/verify-endpoint.mjs",
     "verify:wiring": "node scripts/verify-wiring.mjs",
+    "verify:guard": "node scripts/verify-guard-scenarios.mjs bench/guard-revision",
     "verify": "node --test test/ && node scripts/verify-wiring.mjs"
   },
   "devDependencies": {

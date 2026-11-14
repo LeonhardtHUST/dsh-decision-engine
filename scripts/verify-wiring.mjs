@@ -13,22 +13,16 @@
  * 用法：node scripts/verify-wiring.mjs
  */
 
-import { createRequire } from "node:module";
-import { homedir } from "node:os";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const profileDir = join(homedir(), ".dsh", "profiles", "desktop");
-const requireFromProfile = createRequire(join(profileDir, "package.json"));
-
-/** 让 @deepseek-ai/* 从 profile 的 node_modules 解析（宿主的真实依赖）。 */
+const fixtureHome = await mkdtemp(join(tmpdir(), "decision-wiring-"));
+const previousHome = process.env.DSH_HOME;
+process.env.DSH_HOME = fixtureHome;
 async function loadPlugin() {
-  // schemastery 是 peer 依赖，必须从 profile 解析到真实实现。
-  const schemasteryUrl = pathToFileURL(requireFromProfile.resolve("@deepseek-ai/schemastery")).href;
-  const schemastery = await import(schemasteryUrl);
-  // 把解析结果注入 import.meta.resolve 做不到，改用临时 package.json 方式：
-  // 直接在 profile 目录下跑本脚本即可让 Node 走 profile 的解析路径。
-  return { schemastery };
+  return { schemastery: await import("@deepseek-ai/schemastery") };
 }
 
 const failures = [];
@@ -80,7 +74,7 @@ function makeCtx(services = {}) {
 }
 
 const { schemastery } = await loadPlugin();
-check("从 profile 解析到真实的 @deepseek-ai/schemastery", schemastery !== undefined);
+check("从仓库依赖解析 @deepseek-ai/schemastery（非运行宿主验收）", schemastery !== undefined);
 
 // 用 profile 的解析环境加载插件本体：临时在同目录起一个 loader 太复杂，
 // 改为直接把 profile 的 node_modules 加入解析路径 —— 通过 NODE_PATH 不可靠
@@ -95,7 +89,7 @@ try {
 } catch (error) {
   check("加载 lib/index.js", false, error instanceof Error ? error.message : String(error));
   console.log("\n提示：先在仓库里建到 profile 依赖的链接：");
-  console.log(`  ln -s ${join(profileDir, "node_modules")} node_modules`);
+  console.log("  vp install");
   process.exit(1);
 }
 
@@ -105,6 +99,11 @@ check("导出 Config schema", schema !== undefined);
 
 const defaults = schema({});
 const requiredKeys = [
+  "guardPolicyMode",
+  "guardFallback",
+  "guardFallbackProvider",
+  "guardFallbackModel",
+  "guardFallbackReasoningEffort",
   "routeCheapProvider",
   "routeCheapModel",
   "routeMaxStepsPerTurn",
@@ -400,8 +399,10 @@ check(
 console.log("");
 if (failures.length === 0) {
   console.log("全部接线检查通过");
-  process.exit(0);
+} else {
+  console.log(`${failures.length} 项失败：`);
+  for (const failure of failures) console.log(`  - ${failure}`);
+  process.exitCode = 1;
 }
-console.log(`${failures.length} 项失败：`);
-for (const failure of failures) console.log(`  - ${failure}`);
-process.exit(1);
+if (previousHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previousHome;
+await rm(fixtureHome, { recursive: true, force: true, maxRetries: 8, retryDelay: 30 });

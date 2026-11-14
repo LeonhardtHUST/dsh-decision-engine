@@ -52,8 +52,9 @@ test("可审查工作区写入的模型异常仍遵守选定Fallback而非catch�
   for (const guardFallback of ["deny", "session"]) {
     const env = await fixture({ throwModel: true, config: { guardFallback } });
     try {
-      const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+      const { decision, exec } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
       assert.equal(decision.kind, guardFallback === "deny" ? "deny" : "allow");
+      if (guardFallback === "deny") assert.ok(env.guard(exec), "配置的拒绝也不能被后续wrapper覆盖");
       assert.equal(env.fallbackCalls, guardFallback === "deny" ? 0 : 1);
     } finally { await env.cleanup(); }
   }

@@ -41,6 +41,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
+const packageName = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).name;
 const pkgRoot = join(root, "node_modules", "@microcharts", "react");
 
 if (!existsSync(pkgRoot)) {
@@ -235,7 +236,7 @@ writeFileSync(
  */
 
 window.__ModuleLoader__.load({
-  id: "dsh-decision-engine",
+  id: ${JSON.stringify(packageName)},
   chunk: ${JSON.stringify(chunkFile)},
   factory: (require) => {
     var module = { exports: {} };
@@ -251,7 +252,7 @@ ${bundle}
     return module.exports;
   },
 });
-\`,
+`,
 );
 
 /*

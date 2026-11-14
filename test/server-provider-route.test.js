@@ -121,7 +121,7 @@ function setup(options = {}) {
     credPath: join(home, ".credentials.yaml"),
     restore() {
       globalThis.fetch = originalFetch;
-      rmSync(home, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 30 });
     },
   };
 }
@@ -317,7 +317,7 @@ test("服务端 404（未部署 key）时静默回落到本地配置", async () 
     responder: () => ({ ok: false, status: 404, json: async () => ({ ok: false, err: "not-configured" }) }),
   });
   try {
-    await putConfig(env.routes, { serverProvider: true });
+    await putConfig(env.routes, { serverProvider: true, keyStorage: "config", bamboonodeApiKey: LOCAL_KEY });
     const refreshed = await postRefresh(env.routes);
     assert.equal(refreshed.data.serverProvider.status, "error", "应报错状态");
     assert.equal(refreshed.data.serverProvider.active, false, "不可用时不得标记为生效");

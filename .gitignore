@@ -18,6 +18,7 @@ node_modules/
 node_modules
 .DS_Store
 *.tgz
+release-artifacts/
 
 # 站点构建产物与部署凭据
 site/dist/

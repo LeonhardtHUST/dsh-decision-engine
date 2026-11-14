@@ -1,5 +1,7 @@
 # dsh-decision-engine
 
+Published fork: **`@leonhardthust/dsh-decision-engine`**. Based on the MIT-licensed upstream by [zuosus](https://github.com/zuosus/dsh-decision-engine). Do not enable both packages at once. See [publishing and installation](docs/releasing.md).
+
 ![dsh-decision-engine — decision engine for DeepSeek Harness](docs/assets/hero.jpeg)
 
 **Free decision model usage provided**

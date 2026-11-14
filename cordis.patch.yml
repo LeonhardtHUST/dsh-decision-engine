@@ -11,4 +11,4 @@
 # 插件内的 DEFAULTS 只负责兜底，不在此重复声明。
 - insert:
     - id: decision-engine
-      name: dsh-decision-engine
+      name: '@leonhardthust/dsh-decision-engine'

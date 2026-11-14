@@ -145,7 +145,7 @@ test("图表分块：产物语法正确，且只依赖 react", () => {
 test("图表分块：注册协议正确（id + chunk 名）", () => {
   const { registration } = loadChunk();
   assert.ok(registration, "分块应通过 window.__ModuleLoader__.load 注册");
-  assert.equal(registration.id, "dsh-decision-engine", "分块 id 必须是本插件包名");
+  assert.equal(registration.id, "@leonhardthust/dsh-decision-engine", "分块 id 必须是本插件包名");
   // 宿主用 /^client\.[A-Za-z0-9][A-Za-z0-9._-]*\.js$/ 判定包内分块，
   // 名字不对会被直接拒绝加载。
   assert.match(

@@ -1,0 +1,70 @@
+name: Publish npm
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag matching package.json, for example v1.9.0'
+        required: true
+        type: string
+      dist_tag:
+        description: 'npm distribution tag'
+        required: true
+        default: latest
+        type: choice
+        options: [latest, next]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: verify
+    if: github.repository == 'LeonhardtHUST/dsh-decision-engine'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VP_GIT_HOOKS: '0'
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      NPM_DIST_TAG: ${{ inputs.dist_tag || 'latest' }}
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@cab1ab9eaff52d4857875f4f2c016e36af8f2c76
+        with:
+          version: '1.6.0'
+          node-version: '24'
+          cache: true
+          run-install: false
+      - run: vp install --frozen-lockfile
+      - run: vp run verify:release
+      - run: vp run pack:release
+      - run: vp run verify:package
+      - name: Configure optional npm token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          if [[ -n "$NODE_AUTH_TOKEN" ]]; then
+            umask 077
+            printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/release.npmrc"
+            echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/release.npmrc" >> "$GITHUB_ENV"
+          fi
+      - name: Publish verified tarball
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: vp exec npm publish ./release-artifacts/*.tgz --access public --provenance --tag "$NPM_DIST_TAG"

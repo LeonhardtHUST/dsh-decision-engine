@@ -1,5 +1,7 @@
 # dsh-decision-engine
 
+本分支发布包：**`@leonhardthust/dsh-decision-engine`**，基于 [zuosus 上游](https://github.com/zuosus/dsh-decision-engine) 的 MIT 代码。不要同时启用原包与本分支；安装与发布方法见 [发布说明](docs/releasing.md)。
+
 ![dsh-decision-engine — DeepSeek Harness 决策引擎](docs/assets/hero.jpeg)
 
 **提供免费决策模型**

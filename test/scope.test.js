@@ -113,14 +113,27 @@ test("越界判定：工作区内的写入不算越界", () => {
   assert.equal(result.kind, SCOPE_NONE);
 });
 
-test("越界判定：认不出路径时不算越界", () => {
+test("越界判定：认不出路径时保留未知",  () => {
   const result = classifyWorkspaceTarget({
     tool: "bash",
     args: { command: "echo hi > /etc/x" },
     roots: ["/work/repo"],
     cwd: "/work/repo",
   });
-  assert.equal(result.kind, SCOPE_NONE);
+  assert.equal(result.kind, SCOPE_KINDS.unknown);
+});
+
+test("多目标补丁任意一个越界都不能用首个工作区路径掩盖", () => {
+  const result = classifyWorkspaceTarget({ tool: "apply_patch", args: { input: "*** Update File: a.txt\n*** Update File: /outside/b.txt\n*** Move to: /elsewhere/c.txt" }, roots: ["/work"], cwd: "/work" });
+  assert.equal(result.kind, SCOPE_KINDS.outsideWorkspace);
+  assert.equal(result.targets.length, 3);
+  assert.equal(result.canonical, "unknown");
+});
+
+test("Windows大小写、分隔符与驱动器边界按路径规则处理", () => {
+  assert.equal(isUnderRoots("c:\\WORK\\repo\\A.txt", ["C:\\work\\repo"], "C:\\work\\repo"), true);
+  assert.equal(isUnderRoots("D:\\work\\a.txt", ["C:\\work"], "C:\\work"), false);
+  assert.equal(classifyWorkspaceTarget({ tool: "write", args: { file_path: "C:relative" }, roots: ["C:\\work"], cwd: "C:\\work" }).kind, SCOPE_KINDS.unknown);
 });
 
 // ------------------------------------------------------------ 轮次延续的边界

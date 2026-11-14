@@ -209,12 +209,12 @@ test("异常工具名不会劈开标题：控制字符被压平、超长名被�
   );
 });
 
-test("delegate / deny 不带 displayReason", () => {
+test("低风险可让位，高风险模型意见保留可读审核原因",  () => {
   const delegate = decideGuard(answers({ irrev: 0.05, task: 0.95 }), CFG);
   assert.equal(delegate.kind, "delegate");
   assert.equal(delegate.displayReason, undefined);
 
   const deny = decideGuard(answers({ risk: "high", confidence: 0.9, irrev: 0.6, task: 0.95 }), CFG);
-  assert.equal(deny.kind, "deny");
-  assert.equal(deny.displayReason, undefined);
+  assert.equal(deny.kind, "ask");
+  assert.ok(deny.displayReason?.zh);
 });

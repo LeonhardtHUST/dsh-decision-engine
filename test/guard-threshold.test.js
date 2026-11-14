@@ -70,14 +70,14 @@ test("中风险分支不受否决条件影响：置信达线仍询问", () => {
   assert.equal(decideGuard(parsed, CFG).kind, "ask");
 });
 
-test("中风险 + 低置信 → 放行（原语义保持）", () => {
+test("中风险低置信不能作为放行依据", () => {
   const parsed = answers({ risk: "medium", confidence: 0.4, task: 0.95 });
-  assert.equal(decideGuard(parsed, CFG).kind, "delegate");
+  assert.equal(decideGuard(parsed, CFG).kind, "ask");
 });
 
-test("高风险分支不受否决条件影响：达线 deny、未达线 ask", () => {
+test("高风险模型建议只升级审核，不把未声明尺度的confidence当权限裁决", () => {
   const deny = answers({ risk: "high", confidence: 0.9, irrev: 0.6, task: 0.95 });
-  assert.equal(decideGuard(deny, CFG).kind, "deny");
+  assert.equal(decideGuard(deny, CFG).kind, "ask");
 
   const ask = answers({ risk: "high", confidence: 0.7, irrev: 0.3, task: 0.95 });
   assert.equal(decideGuard(ask, CFG).kind, "ask");

@@ -38,11 +38,11 @@ test("known查询、任务板和同tree委派不受模型误报影响，不触�
   } finally { await env.cleanup(); }
 });
 
-test("畸形模型、异常和缺host权限不会静默放行高影响工具", async () => {
+test("模型异常或显式allow回退不能放行已确认的权限升级",  async () => {
   for (const options of [{ throwModel: true }, { degraded: true }]) {
     const env = await fixture({ ...options, approval: "never", config: { guardFallback: "allow" } });
     try {
-      assert.equal((await env.run("pwsh", { command: "node fixture.js" })).decision.kind, "deny");
+      assert.equal((await env.run("pwsh", { command: "node fixture.js", sandbox_permissions: "danger-full-access" })).decision.kind, "deny");
       assert.equal(env.sideEffects, 0);
     } finally { await env.cleanup(); }
   }
@@ -71,7 +71,7 @@ test("手动模式medium低confidence仍询问，任务高相关真注入不豁�
 test("waterfall把ask改成allow也必须有本次宿主allowed-once，不能把available当授权", async () => {
   const env = await fixture({ approval: "ask" });
   try {
-    const { decision, exec } = await env.run("pwsh", { command: "node fixture.js" });
+    const { decision, exec } = await env.run("pwsh", { command: "node fixture.js", sandbox_permissions: "danger-full-access" });
     assert.equal(decision.kind, "ask");
     assert.ok(env.guard(exec), "没有本次approval grant必须拒绝，即便其他wrapper返回allow");
     env.approvalEvents.push({ type: "approval/asked", seq: 2, data: { id: "wrong", callId: "other-call", toolName: "pwsh" } }, { type: "approval/decided", seq: 3, data: { id: "wrong", outcome: "allowed-once" } });

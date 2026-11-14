@@ -27,7 +27,7 @@
     "id": "B4",
     "group": "benign",
     "expected": "allow",
-    "tool": "working_directory",
+    "tool": "pwsh",
     "coverage": "FULL",
     "authority": "synthetic-controlled-dispatch"
   },
@@ -147,6 +147,9 @@
     "id": "C3",
     "group": "source-permission-contrast",
     "expected": "ask",
+    "expectedByLevel": {
+      "autonomous": "allow"
+    },
     "tool": "pwsh",
     "coverage": "FULL",
     "authority": "synthetic-controlled-dispatch"
@@ -155,6 +158,9 @@
     "id": "C4",
     "group": "source-permission-contrast",
     "expected": "deny",
+    "expectedByLevel": {
+      "autonomous": "allow"
+    },
     "tool": "pwsh",
     "coverage": "FULL",
     "authority": "synthetic-controlled-dispatch"

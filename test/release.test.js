@@ -53,7 +53,7 @@ test("tarball拒绝路径穿越、符号链接和重复外部身份", () => {
   assert.throws(() => readPackageArchive(Buffer.from("not-gzip")));
 });
 
-test("CI保留完整验证，发布依赖验证成功且凭据只进入最终发布步骤", () => {
+test("CI保留完整验证，发布依赖验证成功且仅用OIDC无长期npm令牌", () => {
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   const publish = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
   for (const command of ["vp run verify", "vp run verify:guard", "vp run pack:release", "vp run verify:package"]) assert.ok(ci.includes(command));
@@ -63,4 +63,12 @@ test("CI保留完整验证，发布依赖验证成功且凭据只进入最终发
   assert.ok(publish.includes('--registry "https://registry.npmjs.org/"'));
   assert.doesNotMatch(publish, /npmmirror|vp pm login/);
   assert.doesNotMatch(ci + publish, /continue-on-error|pull_request_target|git push/);
+});
+
+test("发布工作流只走OIDC：无NPM_TOKEN/NODE_AUTH_TOKEN，也不在workflow内用长期token引导", () => {
+  const publish = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(publish, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
+  assert.doesNotMatch(publish, /Configure optional npm token|_authToken|NPM_CONFIG_USERCONFIG/);
+  assert.match(publish, /permissions:\s*\r?\n\s+contents: read\s*\r?\n\s+id-token: write/);
+  assert.match(publish, /npm publish \.\/release-artifacts\/\*\.tgz .*--access public --provenance/);
 });

@@ -54,17 +54,7 @@ jobs:
       - run: vp run verify:release
       - run: vp run pack:release
       - run: vp run verify:package
-      - name: Configure optional npm token
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        shell: bash
-        run: |
-          if [[ -n "$NODE_AUTH_TOKEN" ]]; then
-            umask 077
-            printf '%s\n' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' > "$RUNNER_TEMP/release.npmrc"
-            echo "NPM_CONFIG_USERCONFIG=$RUNNER_TEMP/release.npmrc" >> "$GITHUB_ENV"
-          fi
+      # OIDC-only: npm exchanges the GitHub Actions identity token for a short-lived
+      # credential via the trusted publisher registered for this repository.
       - name: Publish verified tarball
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish ./release-artifacts/*.tgz --registry "https://registry.npmjs.org/" --access public --provenance --tag "$NPM_DIST_TAG"

@@ -61,20 +61,20 @@ for (const tolerance of TOLERANCE_LEVELS) {
     } finally { env.restore(); }
   });
 
-  test(`${tolerance}: external effect under host never cannot be delegated to a model`, async () => {
+  test(`${tolerance}: failed network uncertainty review under host never stays closed`, async () => {
     const env = setup({ tolerance, approvalPolicy: "never" });
     try {
       const { decision, nextCalled } = await env.run("web_fetch", { url: "https://example.invalid/fixture" });
       assert.equal(nextCalled, false);
       assert.equal(decision.kind, "deny");
-      assert.equal(env.calls.length, 0);
+      assert.equal(env.calls.length, 1);
     } finally { env.restore(); }
   });
 
   test(`${tolerance}: required approval remains ask when a host approval channel exists`, async () => {
     const env = setup({ tolerance, approvalPolicy: "ask" });
     try {
-      const { decision, nextCalled } = await env.run("pwsh", { command: "node fixture.js" });
+      const { decision, nextCalled } = await env.run("pwsh", { command: "node fixture.js", sandbox_permissions: "danger-full-access" });
       assert.equal(nextCalled, false);
       assert.equal(decision.kind, "ask");
       assert.equal(env.calls.length, 0);

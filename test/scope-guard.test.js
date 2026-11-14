@@ -61,7 +61,7 @@ test("只有词法作用域而无canonical宿主证据时不再fail-open", async
   const env = fixture({ withFilesystem: false });
   try {
     assert.equal((await env.run("write", { file_path: join(env.root, "inside.txt"), content: "fixture" })).decision.kind, "deny");
-    assert.equal(env.calls.length, 0);
+    assert.equal(env.calls.length, 1);
   } finally { env.cleanup(); }
 });
 
@@ -78,8 +78,9 @@ test("多目标patch和未解析shell不再凭宿主一定兜底而放行", asyn
   try {
     const patch = `*** Begin Patch\n*** Add File: ${join(env.root, "inside.txt")}\n+fixture\n*** Add File: ${join(env.root, "..", "outside.txt")}\n+fixture\n*** End Patch`;
     assert.equal((await env.run("apply_patch", { input: patch })).decision.kind, "deny");
-    assert.equal((await env.run("pwsh", { command: "node arbitrary-script.js" })).decision.kind, "deny");
     assert.equal(env.calls.length, 0);
+    assert.equal((await env.run("pwsh", { command: "node arbitrary-script.js" })).decision.kind, "deny");
+    assert.equal(env.calls.length, 1);
   } finally { env.cleanup(); }
 });
 

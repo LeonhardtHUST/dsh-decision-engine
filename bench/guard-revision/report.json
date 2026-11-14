@@ -47,6 +47,8 @@
   ],
   "legacy240": "unavailable: _bench/gatebench-out absent from this checkout",
   "limitations": [
+    "Hotfix routing fixtures declare the independent reviewer's allow/deny/failure response; these are routing invariants, not empirical model risk metrics.",
+    "Opaque effects are uncertainty, not mandatory permission violations; the benign group now includes the reported PowerShell listing shape.",
     "Old actions are pure-function counterfactuals, not a replay of old host outcomes.",
     "High-impact cases reach the guard with real tool names but use controlled fixture dispatch, not production tool executors.",
     "No production network, shell deletion, privilege escalation or external upload occurs.",

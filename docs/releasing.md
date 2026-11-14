@@ -1,6 +1,6 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.9.0`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.9.1`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
@@ -8,28 +8,28 @@
 
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
 - `.github/workflows/publish.yml`：版本 tag push 或 main 上手动运行。只有 `LeonhardtHUST/dsh-decision-engine` 可以进入发布；发布必须等待上述 CI 成功。
-- 手动运行必须填写与 manifest 完全一致的 `v1.9.0`。后续发版同步修改 manifest 与 tag。预发布版本不能覆盖 npm `latest`。
+- 手动运行必须填写与 manifest 完全一致的 `v1.9.1`。后续发版同步修改 manifest 与 tag。预发布版本不能覆盖 npm `latest`。
 - checkout 与 setup-vp Action 固定到已核对的 commit SHA；不通过 `pull_request_target` 运行不可信 PR。
-- 验证任务只有 `contents: read`；只有发布 job 有 `id-token: write`。代码 checkout 不保留 Git 凭据。此工作流不会自动修改版本、提交源码或推送 Git。
+- 验证任务只有 `contents: read`；只有发布 job 有 `id-token: write`。发布 step 只使用 OIDC（trusted publishing），不再读取任何 npm token secret。代码 checkout 不保留 Git 凭据。此工作流不会自动修改版本、提交源码或推送 Git。
 
-## npm 授权
+## npm 授权：一次性登记，工作流只用 OIDC
 
-首次发包通常需要先用有 `@leonhardthust` scope 发布权限的账号登录：
+发布工作流**只走 npm Trusted Publishing**：publish job 只有 `contents: read` 与 `id-token: write`，npm 把 GitHub Actions 的 OIDC 身份换成短期凭据并生成 provenance。仓库不再需要 `NPM_TOKEN` secret，`publish.yml` 中也不存在任何 `NODE_AUTH_TOKEN`；首次发包之后直接用长期 token 在 workflow 内 bootstrap 的做法已废弃。
+
+首次登记是一次性、由有 `@leonhardthust` scope 发布权限的账号手动执行的动作。npm 的信任关系管理 API 要求 2FA/一次性口令（OTP），非交互环境只会返回 `EOTP`，因此必须在能弹出浏览器完成验证的终端里跑：
 
 ```powershell
-$env:HTTPS_PROXY = "http://localhost:7897"
 $env:HTTP_PROXY = "http://localhost:7897"
-npm config get registry --registry "https://registry.npmjs.org/"
-npm login --registry "https://registry.npmjs.org/" --auth-type web
-npm whoami --registry "https://registry.npmjs.org/"
+$env:HTTPS_PROXY = "http://localhost:7897"
+$env:npm_config_cache = Join-Path (Get-Location) "release-artifacts/npm-cache"
+npm trust github @leonhardthust/dsh-decision-engine --file publish.yml --repository LeonhardtHUST/dsh-decision-engine --allow-publish --registry "https://registry.npmjs.org/" --yes
 ```
 
-认证直接调用原生 npm，不经过当前 `vp pm login` 的参数透传；已观察到该透传把 registry 错误解析成 `https` 后回落到镜像。仓库依赖与验证任务继续由 vp 管理。CLI 必须显示 npmjs 官方 registry；出现 npmmirror 等镜像时立即取消。代理环境变量只影响这个终端。不要把 npm token 贴到聊天、提交到源码或打印到 CI 日志。网页登录和二次验证由用户完成。
-
-CI 发布支持两种授权：
-
-1. **npm Trusted Publishing（优先）**：在 npm 包设置登记 GitHub owner=`LeonhardtHUST`、repo=`dsh-decision-engine`、workflow=`publish.yml`。工作流用 OIDC 和支持 trusted publishing 的 npm CLI 发布，并生成 provenance；不必保存长期 token。首次创建 scoped 包后再配置可信发布者。
-2. **已有发布凭据**：仓库 Actions secret `NPM_TOKEN`。工作流仅在最后的授权与发布步骤提供它，临时 npmrc 使用环境变量引用，不把 token 插进文件内容。token 权限与 npm 的 2FA/发布策略必须允许该包发布；未授权会明确失败，不静默换身份。
+- 该命令登记 owner/repo/workflow 三元组；同一关系重复登记只是覆盖，不需要先 `revoke`。它不接受把 `--cache` 当位置参数，缓存只用进程环境变量 `npm_config_cache` 指定；registry 始终显式写 npmjs 官方地址。
+- 回读用 `npm trust list @leonhardthust/dsh-decision-engine`，但 **list 与 create 一样会触发 OTP 挑战**。非交互环境返回 `EOTP` 属预期：此时登记状态无法从命令行独立核验，只能查看 npm 包设置页的 publishing access，或观察下一次 OIDC 发布的结果。不要为回读反复重发挑战，不要打开 CLI 打印的 `doneUrl`，也不要把挑战换回的 token 读取、复制或落盘。
+- 登记后不要再配置长期 `NPM_TOKEN` 发布路径；若需回退，改用下文的手动发布，不要在工作流里重新注入长期 token。
+- 认证直接调用原生 npm，不经过 `vp pm login` 的参数透传；已观察到该透传把 registry 错误解析成 `https` 后回落到镜像。仓库依赖与验证任务继续由 vp 管理。CLI 必须显示 npmjs 官方 registry；出现 npmmirror 等镜像时立即取消。代理变量只在本次进程内生效。不要把 npm token 贴到聊天、提交到源码或打印到 CI 日志。网页登录和二次验证由用户完成。
+- 工作流要求 runner 自带的 npm CLI 支持 trusted publishing（最低 npm 11.5.1；管理登记命令已核对本机 npm 11.20.0）；OIDC 发布必须带 `--provenance`。
 
 不要把仅有 GitHub 仓库 ADMIN 权限理解成拥有 npm scope 权限。
 
@@ -41,7 +41,7 @@ vp run verify
 vp run verify:guard
 vp run pack:release
 vp run verify:package
-$env:RELEASE_TAG = "v1.9.0"
+$env:RELEASE_TAG = "v1.9.1"
 vp run verify:release
 ```
 
@@ -53,10 +53,12 @@ vp run verify:release
 
 ## 手动发布相同的已验证 tarball
 
+这是本地兜底路径：需要交互式 `npm login` 并当场完成 2FA/OTP，不走 OIDC，也不会生成本地 provenance。日常发版应让 Actions 工作流发布。
+
 授权及完整验证均满足后：
 
 ```powershell
-npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.0.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.1.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
@@ -64,4 +66,4 @@ npm view @leonhardthust/dsh-decision-engine version --registry "https://registry
 
 ## 安装
 
-DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.9.0`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
+DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.9.1`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。

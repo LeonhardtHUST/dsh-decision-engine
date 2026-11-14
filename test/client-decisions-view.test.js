@@ -226,6 +226,36 @@ test("标签名是随语言重读的 thunk（切换语言不必重新注册）",
   assert.equal(meta.label(), "决策历史");
 });
 
+test("本地规则记录明确未调用模型，不再伪装成unknown提供方和0ms推理", async () => {
+  const record = entry({ provider: "unknown", model: "", latencyMs: 0, scores: { decisionSource: "local_policy", modelEvaluation: { status: "not_requested" } } });
+  const ui = await renderDecisions({ page: { entries: [record] } });
+  const cells = ui.cellsOf(record.id);
+  assert.deepEqual(cells.slice(2, 6), ["本地权限规则", "未调用模型", "本地检查通过", "未调用"]);
+});
+
+test("本地规则与未调用模型提示在英文界面也有明确含义", async () => {
+  const record = entry({ provider: "unknown", model: "", latencyMs: 0, scores: { modelEvaluation: { status: "not_requested" } } });
+  const ui = await renderDecisions({ lang: "en", page: { entries: [record] } });
+  assert.deepEqual(ui.cellsOf(record.id).slice(2, 6), ["Local permission rules", "Model not called", "Local checks passed", "Not called"]);
+});
+
+test("回退模型身份优先于缺失或旧primary身份展示", async () => {
+  const record = entry({ provider: "unknown", model: "unknown", latencyMs: 23, scores: { modelEvaluation: { status: "completed", primary: { status: "completed", provider: "primary-provider", model: "primary-model" }, fallback: { status: "completed", provider: "host-provider", model: "fallback-model" } } } });
+  const ui = await renderDecisions({ page: { entries: [record] } });
+  const cells = ui.cellsOf(record.id);
+  assert.equal(cells[2], "host-provider");
+  assert.equal(cells[3], "fallback-model");
+  assert.equal(cells[5], "23ms");
+});
+
+test("模型失败与缓存命中不能被统一展示成0ms", async () => {
+  for (const [status, primaryStatus, expected] of [["failed", "failed", "模型请求失败"], ["completed", "cache_hit", "缓存命中"]]) {
+    const record = entry({ latencyMs: 0, scores: { modelEvaluation: { status, primary: { status: primaryStatus, provider: "fixture", model: "model" }, fallback: { status: "not_requested" } } } });
+    const ui = await renderDecisions({ page: { entries: [record] } });
+    assert.equal(ui.cellsOf(record.id)[5], expected);
+  }
+});
+
 // ------------------------------------------------------------------ 渲染
 
 /**

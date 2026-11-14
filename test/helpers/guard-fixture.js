@@ -28,7 +28,7 @@ export async function createGuardFixture(options = {}) {
     fs: { resolve: async (path, opts) => ({ path: resolve(opts?.cwd ?? root, path) }), contains: (base, target) => { const child = relative(base.path, target.path); return child === "" || (!child.startsWith("..") && !isAbsolute(child)); } },
     agents: { get: (id) => id === "reviewer-fixture" ? { id, session: { id } } : undefined },
     subagents: { rootOf: () => agent, resolveName: async () => "reviewer-fixture", listDescendants: async () => [{ kind: "child", id: "reviewer-fixture", mode: "continuable" }] },
-    llm: { async *stream(request) { fallbackCalls += 1; assert.equal(request.reasoningEffort, "medium"); yield { type: "text-delta", text: '{"action":"allow"}' }; yield { type: "finish", reason: { kind: "stop" } }; } },
+    llm: { async *stream(request) { fallbackCalls += 1; assert.equal(request.reasoningEffort, "medium"); if (options.throwFallback) throw new Error("fixture-review-failed"); yield { type: "text-delta", text: JSON.stringify({ action: options.reviewAction ?? "allow" }) }; yield { type: "finish", reason: { kind: "stop" } }; } },
   };
   const ctx = { logger: { warn() {} }, get: (name) => services[name], on: (name, listener) => { hooks.set(name, listener); return () => {}; } };
   mountGuard(ctx, {

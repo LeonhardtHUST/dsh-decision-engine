@@ -1,0 +1,114 @@
+$ node scripts/verify-wiring.mjs ⊘ cache disabled
+✔ 从仓库依赖解析 @deepseek-ai/schemastery（非运行宿主验收）
+✔ 加载 lib/index.js
+✔ 导出 Config schema
+✔ Config 含 guardPolicyMode
+✔ Config 含 guardFallback
+✔ Config 含 guardFallbackProvider
+✔ Config 含 guardFallbackModel
+✔ Config 含 guardFallbackReasoningEffort
+✔ Config 含 routeCheapProvider
+✔ Config 含 routeCheapModel
+✔ Config 含 routeMaxStepsPerTurn
+✔ Config 含 delegateConfidenceFloor
+✔ Config 含 compactDistilledFloor
+✔ Config 含 compactVerbatinFloor
+✔ Config 含 turnStopValueFloor
+✔ Config 含 retrievalCoveredFloor
+✔ Config 含 retrievalWouldAddCeiling
+✔ Config 含 skillPickConfidenceFloor
+✔ Config 含 cotProseFloor
+✔ Config 含 cotSameLanguageFloor
+✔ 导出 DECISION_POINTS
+✔ 决策点数量与实现一致（8 个）
+✔ Config 含决策点键 pointAuthorize
+✔ 决策点 authorize 标记为已实装
+✔ Config 含决策点键 pointRoute
+✔ 决策点 route 标记为已实装
+✔ Config 含决策点键 pointDelegate
+✔ 决策点 delegate 标记为已实装
+✔ Config 含决策点键 pointCompact
+✔ 决策点 compact 标记为已实装
+✔ Config 含决策点键 pointTurnStop
+✔ 决策点 turnStop 标记为已实装
+✔ Config 含决策点键 pointRetrieval
+✔ 决策点 retrieval 标记为已实装
+✔ Config 含决策点键 pointSkillPick
+✔ 决策点 skillPick 标记为已实装
+✔ Config 含决策点键 pointCotTranslate
+✔ 决策点 cotTranslate 标记为已实装
+✔ authorize 默认跟随旧 mode（observe）
+✔ route 默认 off（升级不改变行为）
+✔ delegate 默认 off（升级不改变行为）
+✔ compact 默认 off（升级不改变行为）
+✔ turnStop 默认 off（升级不改变行为）
+✔ retrieval 默认 off（升级不改变行为）
+✔ skillPick 默认 off（升级不改变行为）
+✔ cotTranslate 默认 off（升级不改变行为）
+✔ 缺所有可选服务时 apply 不抛
+✔ 注册了 tools/pre-execute
+✔ 注册了 agent/request
+✔ 注册了 agent/pre-step
+✔ 注册了 agent/turn-stopping
+✔ tools/pre-execute 同时挂了授权与检索/技能
+✔ 带全部服务时 apply 不抛
+✔ translator.translate 已被包装
+✔ decode 后的端点规范化
+✔ 规范化幂等
+✔ Config 含 provider 键 provider
+✔ Config 含 provider 键 serverProvider
+✔ Config 含 provider 键 baseUrl
+✔ Config 含 provider 键 customBaseUrl
+✔ Config 含 provider 键 customEndpointStyle
+✔ Config 含 provider 键 customHeaders
+✔ Config 含 provider 键 keyStorage
+✔ Config 含 provider 键 systemoneModel
+✔ Config 含 provider 键 systemoneApiKey
+✔ Config 含 provider 键 systemoneApiKeyEnv
+✔ Config 含 provider 键 model
+✔ Config 含 provider 键 bamboonodeApiKey
+✔ Config 含 provider 键 bamboonodeApiKeyEnv
+✔ Config 含 provider 键 siliconflowModel
+✔ Config 含 provider 键 siliconflowApiKey
+✔ Config 含 provider 键 siliconflowApiKeyEnv
+✔ Config 含 provider 键 siliconflowIntlModel
+✔ Config 含 provider 键 siliconflowIntlApiKey
+✔ Config 含 provider 键 siliconflowIntlApiKeyEnv
+✔ Config 含 provider 键 perplexityModel
+✔ Config 含 provider 键 perplexityApiKey
+✔ Config 含 provider 键 perplexityApiKeyEnv
+✔ Config 含 provider 键 openrouterModel
+✔ Config 含 provider 键 openrouterApiKey
+✔ Config 含 provider 键 openrouterApiKeyEnv
+✔ Config 含 provider 键 customModel
+✔ Config 含 provider 键 customApiKey
+✔ Config 含 provider 键 customApiKeyEnv
+✔ 导出 PROVIDER_IDS
+✔ 导出 PROVIDER_PRESETS
+✔ provider 预设覆盖五家（systemone / bamboonode / siliconflow / siliconflow-intl / custom）
+✔ 默认 provider 保持 bamboonode（升级不改变行为）
+✔ 默认 provider 解析出 bamboonode 端点
+✔ systemone 解析出 /v1/systemone
+✔ siliconflow 解析出 /v1/systemone 且留空时带默认模型
+✔ siliconflow 的候选端点仍是「首选 + 404 回退」
+✔ siliconflow-intl 解析出 /v1/systemone 且留空时带默认模型
+✔ siliconflow-intl 的候选端点仍是「首选 + 404 回退」
+✔ custom 缺 base URL 时 valid=false
+✔ 下发值接管 provider 解析（id=server）
+✔ 下发值拼出 systemone 端点与候选
+✔ 下发的 model 原样生效（不被本地 model 覆盖）
+✔ 下发 model 留空时保持空串（= 不发送 model 字段）
+✔ 下发 base URL 非法时 valid=false 且带中文原因
+✔ 不传 server 时解析结果与旧签名一致
+✔ memoryKey 优先于凭据文件与环境变量
+✔ memoryKey 为空串时退回既有来源
+✔ 默认 provider（bamboonode）的显式 key 与空 memoryKey 链路一致
+✔ 非法 custom base URL 被拒绝
+✔ 合法 custom base URL 通过校验
+✔ custom 请求构造不残留 bamboonode 域名
+✔ resolveProvider 给出候选端点（404 时有路可退）
+✔ 候选端点覆盖 decisions 与 systemone 两条路径
+✔ 地址已自带端点时只给一个候选（用户的明确决定不被改写）
+
+全部接线检查通过
+

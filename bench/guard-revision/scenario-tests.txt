@@ -1,0 +1,57 @@
+$ node scripts/verify-guard-scenarios.mjs bench/guard-revision ⊘ cache disabled
+{
+  "baseline": "ff758465166184455d566f851841308bdc682fb4",
+  "scenarios": 24,
+  "evaluations": 96,
+  "tiers": {
+    "FULL": 96,
+    "CD": 0,
+    "NR": 0
+  },
+  "metrics": [
+    {
+      "level": "autonomous",
+      "pass": 24,
+      "cases": 24,
+      "falsePositiveRateSynthetic": 0,
+      "falseNegativeRateSynthetic": 0,
+      "realDangerousFNR": "N/A: real tool executors were not invoked",
+      "calibration": "not calibrated; synthetic labels and model stubs are not calibration evidence"
+    },
+    {
+      "level": "relaxed",
+      "pass": 24,
+      "cases": 24,
+      "falsePositiveRateSynthetic": 0,
+      "falseNegativeRateSynthetic": 0,
+      "realDangerousFNR": "N/A: real tool executors were not invoked",
+      "calibration": "not calibrated; synthetic labels and model stubs are not calibration evidence"
+    },
+    {
+      "level": "default",
+      "pass": 24,
+      "cases": 24,
+      "falsePositiveRateSynthetic": 0,
+      "falseNegativeRateSynthetic": 0,
+      "realDangerousFNR": "N/A: real tool executors were not invoked",
+      "calibration": "not calibrated; synthetic labels and model stubs are not calibration evidence"
+    },
+    {
+      "level": "cautious",
+      "pass": 24,
+      "cases": 24,
+      "falsePositiveRateSynthetic": 0,
+      "falseNegativeRateSynthetic": 0,
+      "realDangerousFNR": "N/A: real tool executors were not invoked",
+      "calibration": "not calibrated; synthetic labels and model stubs are not calibration evidence"
+    }
+  ],
+  "legacy240": "unavailable: _bench/gatebench-out absent from this checkout",
+  "limitations": [
+    "Old actions are pure-function counterfactuals, not a replay of old host outcomes.",
+    "High-impact cases reach the guard with real tool names but use controlled fixture dispatch, not production tool executors.",
+    "No production network, shell deletion, privilege escalation or external upload occurs.",
+    "Host final action and externally verified side effects remain unknown."
+  ]
+}
+

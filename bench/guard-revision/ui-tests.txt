@@ -1,0 +1,1564 @@
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] client bundle loaded
+✔ 图表分块：产物语法正确，且只依赖 react (5.0739ms)
+✔ 图表分块：注册协议正确（id + chunk 名） (1.8617ms)
+✔ 图表分块：导出全部图型 + 样式 (5.264ms)
+✔ 图表分块：用的是交互入口，交互层真的挂上了 (19.7738ms)
+✔ 走势图几何：我们复刻的坐标公式与 vendored 库自己算出的顶点逐位相同 (74.6127ms)
+✔ 图表分块：CSS 具备图形可见性所需的规则 (1.2864ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 决策历史以 conversation.view 注册，order 排在内置 tab 之后 (64.604ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 开关关闭时不注册这个视图 (62.6823ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 标签名是随语言重读的 thunk（切换语言不必重新注册） (62.0849ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 列出本会话的决策：时间、决策点、提供方、模型、裁决、耗时 (78.2599ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 多条记录按时间列出：默认降序，最新在上（DEC-044） (77.8495ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 展开后能看到决策内容：现场、问题、回答、分数 (64.4573ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 没有内容时明确说明「只保存了元数据」 (74.9227ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 没有记录时给出可读的空态 (77.6517ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 读取失败时显示原因而不是空白 (78.4294ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 一条坏记录不会让整页崩掉 (78.0375ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 没有会话 id 时显示提示而不是崩溃 (76.8947ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 被截断时提示还有更多记录 (77.2525ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 缓存命中与降级各有标记 (77.8452ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 「内容」列显示捕获状态：有内容 / 仅元数据 (64.6826ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 缓存/降级标记只在「标记」列，「内容」列不再兼报它们 (74.5121ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 「内容」表头按有没有内容排序（与列语义一致） (77.7683ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 「标记」表头按状态分组排序（无 → 已降级 → 缓存命中） (79.7686ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 英文界面里没有中文残留（UI 文案；记录内容是数据，不算） (64.9606ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 原始审计文本原样输出，不被翻译（记录不被篡改） (90.7329ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 表头 sticky 的前提条件都在 (77.6675ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 表头粘的滚动容器一定会滚（不依赖宿主布局） (77.4537ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 滚动容器之上不再有任何 overflow/height 祖先截胡 sticky (78.8187ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 点击整行展开内容，再点收起 (80.0158ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 决策点名表由视图自己拉取（不依赖宿主传 props） (77.3562ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 不再有决策点筛选控件（该功能已移除） (77.2099ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 顶部那一排「会话 / 总数 / 刷新」整排移除（DEC-036） (77.85ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 点第二行，详情插在第二行后面（不是第三行后面） (78.0387ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 点第一行与第三行也各自正确 (169.3686ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ seq 重复（DSH 重启后）仍按 id 定位：只展开被点的那一行 (76.4703ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 同一行点两次会收起，且不影响别的行 (77.4938ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 默认按时间降序（最新在上） (77.7921ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 点「时间」表头：降序升序交替，箭头只画在当前列 (78.1337ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 点「耗时」表头：首次降序（最慢在前），再点升序 (61.7676ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 排完别的列再点「时间」：从降序起，且箭头跟着切换 (64.2924ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 降级「标记」列写出失败原因与状态码 (90.5181ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 裁决列写中文名：16 个裁决词全覆盖 (78.9212ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 原始机器词留在裁决格的 title 上（对照明细文件与日志用） (76.4847ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 英文界面：裁决列翻回机器词，且不残留中文 (92.2713ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 未登记的裁决词退回原词，不显示空格或 undefined (92.2395ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 裁决列按中文名排序，不按机器词的字母序 (92.2476ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 首屏那一整批不带入场动画 (78.452ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 轮询多出来的那一条带动画，已有的行一条都不带 (121.6858ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 动画只播一次：下一轮轮询没多出新记录时谁都不再动 (154.0332ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 翻排序方向 / 展开行：动画只跟着那一条记录，不扩散也不搬家 (140.5877ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 系统要求减弱动态效果时一律不动画（但新记录照常出现） (140.2154ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 换会话：新会话的第一批只登记、不动画（基线随会话清空） (248.7338ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ keyframes 只往文档里注一次；没有 document 也只是不动画、不崩 (265.2259ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 决策历史页渲染四段滑块（车厢里就能调，不用跳去配置页） (80.3628ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 空态（本会话没有记录）仍然有滑块可调 (92.3776ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 错误态：读取失败时如实报错，且不画一个没有数据支撑的滑块 (93.5958ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 服务端不下发 tolerance 时，决策历史页照常渲染（回归守卫） (77.7306ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 英文界面下这个滑块不残留中文（服务端中文标签有词表兜着） (79.0071ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 决策历史页根容器用 Sarasa Gothic SC → 系统字体，正文不小于 14px (91.5912ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 表格、表头与单元格字号不低于 12px，且不用等宽字体 (93.8833ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 展开明细用页面字体、字号不低于 13px（记录不是代码块） (78.6948ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 空态与错误提示的字号不低于 12px (171.9404ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] conversation.view mounted
+[dsh-decision-engine] conversation.approval.detail mounted (priority -1)
+✔ 截断提示与记录文件路径的字号不低于 12px (92.6459ms)
+✔ 决策历史树里没有任何用户可读文本退化成等宽字体 (94.5845ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale.register failed: Cannot read properties of undefined (reading 'register')
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+(node:62588) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 英文：宿主语言为 en 时，配置页不残留中文 (39.674ms)
+✔ 英文：统计页不残留中文 (32.4728ms)
+✔ 英文：界面上确实出现了英文关键词（不是整页空白或原样中文） (33.1951ms)
+✔ 中文：宿主语言为 zh 时保持原样中文界面 (38.0214ms)
+✔ 宿主没有 locale 服务时按浏览器语言（显式 en-US → 英文） (34.7851ms)
+✔ normalizeLang：带 zh 前缀都算中文，其余算英文 (32.0512ms)
+✔ readHostLang：按 LocaleFace 的快照读 active (27.3855ms)
+✔ t()：模板查表并填参，参数里的中文也翻译 (31.6547ms)
+✔ tr()：英文界面下未登记的中文原样返回（宁可留中文，也不出乱码） (30.1307ms)
+✔ setLang：切换时通知订阅者（useLang 的重绘来源） (31.368ms)
+✔ 英文：custom provider 表单与本地校验提示不残留中文 (26.3944ms)
+✔ 英文：保存失败态与重试按钮不残留中文 (30.5295ms)
+✔ 英文：统计读取失败与空区间态不残留中文 (28.4102ms)
+✔ 英文：状态未加载（首屏）时不残留中文 (27.2383ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+(node:14648) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 状态未加载时也渲染出完整表单（不空白） (36.2595ms)
+✔ 面板顶部有项目主页链接（入口放在最上面，不是附注） (38.6828ms)
+✔ 链接排在 tab 栏上面（页面头部），不是塞进表单末尾 (29.1306ms)
+✔ 切到统计 tab 时链接依然在（它是页面级入口，不属于某一页） (40.3947ms)
+✔ 有改动时状态行说明自动保存，而不是等用户点按钮 (26.8903ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 拨一下开关就发出 PUT /config，不需要点保存 (34.9247ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 粘贴 API Key 后失焦即提交，且只带 key 那一格 (30.8147ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 硅基流动：粘贴 key 写进它自己那一格（字段名来自服务端 providerCatalog） (47.3176ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 硅基流动：改模型写进它自己那一格，且「留空」被说成预设默认 (30.7689ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 服务端没给 provider 字段映射时绝不猜格子：宁可延后也不写 (44.5516ms)
+✔ provider 下拉包含全部预设，默认 bamboonode (26.3089ms)
+✔ 选 system one 时下拉回显它、且不出现 custom 专属字段 (26.6992ms)
+✔ 选 custom 时出现必填字段与本地校验提示 (24.624ms)
+✔ custom 地址非法时给出具体原因 (22.842ms)
+✔ 端点风格下拉说明它是「首选」且 404 会自动换路径 (22.2295ms)
+✔ 探测出的可用端点会显示在「生效端点」下方 (23.1341ms)
+✔ 服务端拒绝的原因会显示在界面上 (21.5642ms)
+✔ 密钥保存位置有下拉，默认 .credentials.yaml (22.8772ms)
+✔ 每个 provider 显示自己的密钥名，不共用 (47.7912ms)
+✔ 生效端点始终可见（避免界面显示与实际请求不一致） (24.8671ms)
+✔ 思考模式下拉存在，回显当前值且提供全部三档 (30.8735ms)
+✔ 思考模式选项由服务端下发，不在前端硬编码 (25.2444ms)
+✔ 选 always 时提示延迟代价 (25.1097ms)
+✔ 状态未加载时思考模式下拉仍有兜底选项 (29.0343ms)
+✔ keyStorage=config 时显示配置文件的字段名，不显示凭据变量名 (35.3884ms)
+✔ 凭据文件来源时显示 .credentials.yaml 与变量名 (34.0676ms)
+✔ 环境变量来源时明确标注是环境变量 (34.0217ms)
+✔ 未配置时来源显示「未配置」并标注未读到 (33.9829ms)
+✔ 存到插件配置时提示的是字段名，而不是凭据变量名 (35.5472ms)
+✔ client.js 不引用未定义的 setXxx（防重构留下悬空调用） (3.2825ms)
+✔ 页面拆成两个 tab：配置 / 统计与对比 (32.2513ms)
+✔ 统计：区间预设由服务端下发，前端不硬编码清单 (65.2846ms)
+✔ 统计：把预设解析成的真实区间显示出来 (38.7354ms)
+✔ 统计：自定义范围要填全起止才发请求 (31.0772ms)
+✔ 统计：横向对比表按 provider × model 列出，节省量另有对比表 (29.5568ms)
+✔ 统计：说明基线口径（用户必须知道「省了多少」相对什么算） (33.2025ms)
+✔ 统计：节省量一节写明只统计「观察」模式 (36.7441ms)
+✔ 统计：没有观察模式的记录时说明「节省为 0」不等于「没省」 (32.1496ms)
+✔ 统计：按模式分账，说明节省量的来源 (37.0395ms)
+✔ 统计：含历史推算数据时明确标注 (35.9998ms)
+✔ 统计：区间内无数据时说明原因，而不是显示一排空值 (31.3974ms)
+✔ 统计：裁决统计单列一节，显示 allow / ask / reject 三格 (33.8896ms)
+✔ 统计：裁决统计按决策点分账 (31.6202ms)
+✔ 统计：未归类的裁决必须显式提示（否则数字只是悄悄偏小） (37.886ms)
+✔ 统计：没有裁决数据时不渲染裁决一节（而不是显示一排零） (30.8627ms)
+✔ 决策历史在配置页只有一个开关（不再有「决策内容」子开关） (30.5999ms)
+✔ 决策历史关闭时仍然只有一行，且提示说明「不写文件」 (32.979ms)
+✔ custom 时模型行移入「自定义 provider」区，自动项改为「不发送 model 字段」 (35.2035ms)
+✔ 内置预设的模型行留在通用区域，自动项仍是「服务端默认」 (30.1918ms)
+✔ 配置页分成四个可折叠分组，顺序与标题固定（DEC-051） (34.5914ms)
+✔ 每个分组标题是带 aria-expanded / aria-controls 的按钮（可点可折叠） (41.9448ms)
+✔ 默认展开前两组（连接方式 / 守卫行为），记录与高级收起（DEC-051） (34.3782ms)
+✔ 每一项都归属正确的那一组（断言父子关系，不是「页面上有这个字」） (36.6784ms)
+✔ 页脚（保存状态 / 测试端点 / 状态信息）在所有分组之下，不属于任何一组（DEC-051） (40.4007ms)
+✔ 分组展开状态记在 localStorage，刷新后不弹回（DEC-051） (39.4851ms)
+✔ 折叠是 hidden 而不是卸载：控件草稿不会因为收起分组而丢（DEC-051） (34.0574ms)
+✔ 每个分组标题带语义色图标与 chevron，且图标与色块同色（DEC-051） (36.3771ms)
+✔ 旧的分隔线节点已全部移除（分组标题就是新的分隔，DEC-051） (38.0509ms)
+✔ 配置页与统计页的容器不限制最大宽度（DEC-040） (81.1009ms)
+✔ 「使用免费模型」下面有一行小字「可能会失效」，且就在这一行里（DEC-037） (39.1403ms)
+✔ 「使用免费模型」开关默认关，且说明用的是本地配置 (39.2142ms)
+✔ 服务端下发生效时显示地址、模型与 key 末四位，且树里没有明文 key (32.5659ms)
+✔ 服务端不可用时说明原因，并明确已回落到本地配置 (37.113ms)
+✔ 下发值过期时额外说明「已过期」 (35.4677ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 「重新获取」发的是 POST /server-provider，不是又存一次配置 (45.8983ms)
+✔ 服务端生效时，手动输入 key 与 provider 下拉都还在（手动方案不变） (42.1134ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 播开关会 PUT /config 且带上 serverProvider: true (54.319ms)
+✔ 即使服务端误把明文 key 塞进响应，界面也不会显示它 (41.6726ms)
+✔ 配置页渲染四段滑块，且四个段依次是 自治 / 轻松 / 默认 / 谨慎 (44.6793ms)
+✔ 滑块不是下拉菜单：四档不是 select 的选项 (39.9554ms)
+✔ 当前档位被打勾（aria-pressed），其余为 false (40.8644ms)
+✔ 服务端不下发 tolerance 时，配置页照常渲染且不出现滑块（曾经的回归） (42.9265ms)
+✔ 校准脚注：未就绪时写「校准中 n/50」，就绪后写实际阈值 (80.9378ms)
+✔ 滑块独占一整行，没被塞进 rowLine 的右半边（真机竖排事故的回归守卫） (38.9059ms)
+✔ 图表：有图表模块时，走势图拿到服务端那条序列 (41.1648ms)
+✔ 图表：区间尾部有未来段时，未来点在 data 里置 null、虚线段自己画 (40.6507ms)
+✔ 图表：区间全零（没有任何数据）时不该出现「虚线段…」那句说明 (43.9692ms)
+✔ 图表：没有未来段时（字段缺失 / 越界 / 非数字 / 整段未来）行为与旧版逐点相同 (502.6725ms)
+✔ 图表：没有图表模块时统计页照常显示数字表格（降级） (52.5185ms)
+✔ 图表：裁决构成条只在有裁决时出现，且不含「未裁决」 (104.6868ms)
+✔ 图表：节省量对比只在「观察模式有数据」时画，且带基线 (102.0259ms)
+✔ 图表：请求次数排序条只取前 8 个组合 (53.1496ms)
+✔ 图表：按决策点分账画圆环，且图例与圆环同色（mc-theme 作用域） (54.1924ms)
+✔ 图表：圆环下方不再加自己的一行读数（图自己会报数） (51.0849ms)
+✔ 图表：走势图下方的读数行仍然保留（只有圆环去掉了） (54.0647ms)
+✔ 图表：圆环容器带 mc-theme，图例颜色才不会与圆环错位 (25.9859ms)
+✔ 图表：没有 byPoint 时不画圆环 (26.2354ms)
+✔ 图表：点击图例可隐藏决策点，其余点重新归一化 (23.1166ms)
+✔ 图表：全部隐藏时给出可撤销的提示，而不是画一个空环 (21.8799ms)
+✔ 图表：隐藏后圆环数据只含可见项，且颜色按 id 固定不随顺序漂移 (49.8003ms)
+✔ 图表：读数元素不能塞进 chartBox 的样式参数（真机白屏事故的回归守卫） (24.4641ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 工具授权：off/observe/enforce 三态同步写 /config 的三个键 (64.0128ms)
+✔ 工具授权文案：不承诺 off/observe 也有拦截保护 (23.5938ms)
+✔ 决策模型参与点：隐藏重复的「工具授权」，其余点保留 (22.3762ms)
+✔ 自动审查回退：四策略可选，默认 session (27.4401ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 回退到指定模型：provider/model/effort 既可从宿主目录下拉，也可手填 (42.0753ms)
+✔ 宿主模型库不可用：说明原因，手填框仍然可用 (28.8908ms)
+✔ guardModelsPath：只在选定 provider+model 时才带 query (30.3944ms)
+✔ guardAuthorizePatch：观察→shadow，关闭/生效→enforce，且都打开安全核心 (27.0253ms)
+✔ 设置页字体：Sarasa Gothic SC 在第一位，系统字体兜底；正文 14px (28.3594ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 模型行：下拉保留列表，同时有真正可手填的 input (27.6457ms)
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] client bundle loaded
+[dsh-decision-engine] apply() called
+[dsh-decision-engine] locale registered
+[dsh-decision-engine] inject fired for plugins.bundle.config
+[dsh-decision-engine] bundle.config mounted, key = dsh-decision-engine
+[dsh-decision-engine] reconcile skipped: Failed to parse URL from /api/decision-engine/status
+[dsh-decision-engine] approval detail reconcile skipped: Failed to parse URL from /api/decision-engine/status
+✔ 宿主模型库：逐字符输入只在停手 350ms 后发一次查询（防抖） (467.2019ms)
+✔ 宿主模型库：补档位失败保留目录，只标 effortsUnavailable (27.4138ms)
+✔ 守卫关闭时：工具授权三态禁用，且首句说明没有拦截保护 (29.0959ms)
+✔ 词表覆盖：源码里渲染的中文文案都有英文 (6.1424ms)
+✔ 词表覆盖：跨行拼接的整段不会被逐片段漏翻 (3.8068ms)
+✔ 词表：英文译文里不残留中文 (1.5131ms)
+✔ 词表：每个 key 都有非空英文 (0.8004ms)
+ℹ tests 186
+ℹ suites 0
+ℹ pass 186
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5639.3767

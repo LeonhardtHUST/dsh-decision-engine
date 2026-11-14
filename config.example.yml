@@ -204,7 +204,7 @@ keyStorage: credentials
 # 优先环境变量 DECISION_SERVER_CONFIG_TOKEN，其次下方 .credentials.yaml 的 refs 段同名键。
 serverProvider: false
 
-# 超时预算（毫秒）。超时自动降级放行，连续失败进入冷却。
+# 超时预算（毫秒）。超时仅使模型建议失效，强制策略仍生效；连续失败进入冷却。
 #
 # 为什么是 20000 而不是 8000：这个服务端有**冷启动尾延迟**。闲置约 110 秒后的
 # 首发实测要 7.4–15.9 秒，焐热之后只要 1.0–1.3 秒。8 秒会把冷启动首发**稳定
@@ -331,40 +331,33 @@ pointCotTranslate: off
 # cacheSize: 256            # 缓存条数上限
 # cacheTtlMs: 600000        # 裁决存活时间
 # recentMessages: 4         # 带给模型的上下文条数
-# guardReadOnlyTools: [read, grep, glob, todo_write]
-# guardDenyConfidence: 0.85
+# guardReadOnlyTools / guardExcludeTools / guardDeferOutsideWorkspace 保留旧键解析，
+# 不再是绕过强制安全策略的白名单；越界写入不能无条件交给宿主。
+# guardDenyConfidence 不再参与新授权策略。confidence 不能充当危险概率。
 # guardIrreversibleCeiling: 0.2
-# 低风险且可能不可逆的调用，只有当「服务于当前任务」的概率低于此线才升级
-# 人工确认；设 0 可整体停用该分支，设 1 恢复旧行为（只看不可逆分数）。
 # guardTaskRelevanceFloor: 0.5
-# 越出工作区的写入**不由本插件裁决**（DEC-045）。默认 true：守卫遇到目标确定在
-# 工作区写根之外的调用时直接放行（不询问、不拦下、不发请求），把「能不能写到
-# 工作区外面」完整地留给宿主沙箱与你。关掉它不会让插件去管这件事，只会回到
-# 旧行为（照常问模型）。
-# guardDeferOutsideWorkspace: true
 
-# ============================================================================
-# 人工审核比例（tolerance）——模型无关的「打扰频率」设定
-# ============================================================================
-# 上面那几个 guard* 阈值都是**绝对分数**，是在某一家决策模型上校准出来的：
-# 换一个模型，同一个 0.4 的含义就变了。这一项不谈分数，只谈**比例**——
-# 「大概每多少次工具调用，值得问我一次」。插件会按当前模型最近 200 次授权
-# 决策的分数分布，把你选的比例换算成一个阈值，所以换模型不需要重调。
-#
-#   autonomous  自治：从不询问用户（0%）
-#   relaxed     轻松：只有分数排在最前 1% 的调用才询问
-#   default     默认：按决策模型自己的判断（= 上没有这一项时的行为）
-#   cautious    谨慎：在默认判断之上，再把分数靠前 25% 的调用也拿来询问
-#
-# 两个必须知道的性质：
-#
-# 1. **default 档与升级前逐字一致**。不写这一项就是它，老配置的行为一点没变。
-# 2. **自治档不取消拦截**。它只压制「问你」这件事；真正高风险的调用仍会被
-#    直接拦下（deny）——拦下不打断你，它是安全边界，不是询问。
-#
-# 换模型或重启后会重新攒样本；样本不足 50 次时无法算分位，此时按实测标定的
-# 冷启动阈值走，界面会写明「校准中 n/50」，不是设置失效。
-#
+# 新策略默认 enforce；observe 仅用于隔离对照诊断，不实施 mandatory 拦截。
+# 只有 enabled=true、guardEnabled=true、pointAuthorize=enforce 才真正拦截。
+guardPolicyMode: enforce
+
+# 自动审查（宿主 auto 或 tolerance=autonomous）的软性 ask 和建议失败时：
+# model   指定宿主注册的 provider / model / reasoning effort
+# session 沿用当前会话 request/header 的模型和 reasoning effort（默认）
+# allow   跳过软审查，仍不可覆盖 mandatory deny / requires_approval
+# deny    阻止软审查请求
+# 指定模型不可用、超时、响应非法一律拒绝，不再嵌套回退成 allow。
+guardFallback: session
+guardFallbackProvider: ""
+guardFallbackModel: ""
+guardFallbackReasoningEffort: ""
+
+# 四档只调整软审核摩擦。mandatory deny 全档不变；requires_approval 必须
+# 获得当前调用的宿主 allowed-once，无审批通道时拒绝，模型不能代批。
+# autonomous 将软 ask 交给上述 Fallback，不等于直接放行。
+# relaxed / default / cautious 保留既有软摩擦档位行为；旧默认裁决函数
+# decideGuardLegacy 仅用于回放，不接入生产权限路径。
+# severity 是排序分数，分位数就绪不代表危险概率已校准。
 # tolerance: default
 
 # ============================================================================

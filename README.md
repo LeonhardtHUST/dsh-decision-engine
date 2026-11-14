@@ -43,8 +43,11 @@ readable approval card
 
 **Token saving**: exact cache · read-only tools bypass · state trimming
 
-**Reliability**: shadow by default · fail open on any error · timeout degrades ·
-stats can be turned off
+**Safety layers**: trusted host context → tool effects → mandatory permissions → model advisory → soft review tolerance → host outcome audit.
+Unknown high-impact calls fail closed; Auto still runs decision review. Soft asks use a selected host model (including reasoning effort), the session model, allow, or deny.
+Neither model review nor the allow fallback can replace mandatory approval.
+
+See the [security revision and verification notes](docs/security-revision.md). The plugin remains disabled by default; observation mode does not enforce protection.
 
 ## License
 

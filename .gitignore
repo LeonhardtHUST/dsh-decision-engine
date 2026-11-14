@@ -13,6 +13,8 @@ analytics.json.tmp
 
 # 依赖与系统文件
 node_modules/
+.vite-hooks/_/
+.vite/
 node_modules
 .DS_Store
 *.tgz

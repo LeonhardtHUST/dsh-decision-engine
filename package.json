@@ -81,10 +81,18 @@
     "@deepseek-ai/cordis": "*",
     "@deepseek-ai/schemastery": "*"
   },
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
+    "prepare": "vp config --no-agent",
+    "commitlint": "commitlint",
     "test": "node --test test/",
     "verify:endpoint": "node scripts/verify-endpoint.mjs",
     "verify:wiring": "node scripts/verify-wiring.mjs",
     "verify": "node --test test/ && node scripts/verify-wiring.mjs"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-angular": "^21.2.4",
+    "vite-plus": "1.6.0"
   }
 }

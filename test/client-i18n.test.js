@@ -289,8 +289,23 @@ test("中文：宿主语言为 zh 时保持原样中文界面", async () => {
   assert.ok(text.includes("启用守卫"), `中文界面应显示「启用守卫」，实际：\n${text.slice(0, 1200)}`);
 });
 
-test("宿主没有 locale 服务时按浏览器语言（测试环境 navigator=en-US → 英文）", async () => {
-  const { text } = await renderLang({ lang: null, slots: { [SLOTS.status]: stateWith(), [SLOTS.decisions]: decisionsFixture } });
+test("宿主没有 locale 服务时按浏览器语言（显式 en-US → 英文）", async () => {
+  // 浏览器语言必须**显式给成 en-US**，不能依赖运行环境：Node 26 的
+  // `navigator.language` 跟随系统（中文机器上是 zh-CN），那样这条用例在
+  // 中文系统上必红——测到的是「这台机器装了什么语言」，不是回退逻辑。
+  // 这里临时替换 navigator，跑完恢复，生产代码(fallback 链路)一字不改。
+  const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    value: { language: "en-US", languages: ["en-US"] },
+    configurable: true,
+  });
+  let text;
+  try {
+    ({ text } = await renderLang({ lang: null, slots: { [SLOTS.status]: stateWith(), [SLOTS.decisions]: decisionsFixture } }));
+  } finally {
+    if (original === undefined) delete globalThis.navigator;
+    else Object.defineProperty(globalThis, "navigator", original);
+  }
   assert.ok(text.includes("Provider"), `无 locale 服务时应回落到浏览器语言（en-US → 英文），实际：\n${text.slice(0, 1200)}`);
 });
 

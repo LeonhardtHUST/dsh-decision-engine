@@ -25,7 +25,7 @@ import { mountCotTranslatePoint } from "../lib/adapters/translate.js";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 
 /** 配置基线。 */
@@ -1277,7 +1277,15 @@ async function probeSetup(mod, { decisionFetch, before } = {}) {
       hooks.set(name, list);
       return () => {};
     },
-    get(name) { return name === "connection" ? connection : undefined; },
+    get(name) {
+      if (name === "connection") return connection;
+      if (name === "sandboxPolicy") return { resolve: () => ({ mode: "workspace-write", workspaceRoot: "/work/repo", additionalWritableRoots: [] }) };
+      if (name === "fs") return {
+        resolve: async (path, options) => ({ targetKey: posix.resolve(options?.cwd ?? "/work/repo", path) }),
+        contains: (root, target) => target.targetKey === root.targetKey || target.targetKey.startsWith(`${root.targetKey}/`),
+      };
+      return undefined;
+    },
     inject(_names, fn) { fn(); },
     plugin() {},
     effect() {},

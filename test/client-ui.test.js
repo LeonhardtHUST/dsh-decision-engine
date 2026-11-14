@@ -49,6 +49,8 @@ let loadSeq = 0;
  *   7 storageDraft  8 providerError 9 models     10 modelsState
  *   11 decisions    12 pointsDraft  13 stats     14 statsError
  *   15 statsFilter  16 tab          17 statsMeta    18 saveState
+ *   19 sectionOpen  20 chartsReady  21 hiddenPoints 22 trendReadout
+ *   23 guardCatalog（宿主模型库；本次新增，按约定排在最后）
  *
  * 槽位对错了的表现很具体：比如把统计结果注到 `tab` 上，配置页会照常渲染
  * 而统计页不出来——测试会失败，而不是静默通过。
@@ -61,6 +63,9 @@ const SLOTS = {
   statsFilter: 15,
   tab: 16,
   statsMeta: 17,
+  // 宿主模型库（GET /guard-models）。放在最后一个状态槽位：新增 state 一律
+  // 追加在末尾，既有槽位序号才不会整体挪位。
+  guardCatalog: 23,
 };
 
 /**
@@ -293,6 +298,15 @@ function stateWith(over) {
     },
     thinkMode: "never",
     timeoutMs: 8000,
+    // 强制安全核心 / 工具授权 / 自动审查回退：与 lib/index.js 的
+    // statusPayload() 同形。`points` 是服务端的**生效值**表（authorize 已经
+    // 把 auto 按旧 mode 解析成三态）。
+    guardEnabled: true,
+    points: { authorize: "observe", retrieval: "off" },
+    guardFallback: "session",
+    guardFallbackProvider: "",
+    guardFallbackModel: "",
+    guardFallbackReasoningEffort: "",
     keyConfigured: true,
     keyHint: "…abcd",
     keyEnvName: "BAMBOO_API_KEY",
@@ -346,7 +360,8 @@ function stateWith(over) {
 
 test("状态未加载时也渲染出完整表单（不空白）", async () => {
   const { text, tree } = await render(null);
-  for (const label of ["服务提供方", "生效端点", "启用守卫", "真正拦截", "模型", "API Key", "测试端点"]) {
+  // 「真正拦截」已并入「工具授权」三态：同一个问题只保留一个入口。
+  for (const label of ["服务提供方", "生效端点", "启用守卫", "工具授权", "模型", "API Key", "测试端点"]) {
     assert.ok(text.includes(label), `缺少「${label}」：\n${text.slice(0, 400)}`);
   }
   // 兜底状态不得自带服务商地址：地址只能来自服务端下发的预设
@@ -1564,7 +1579,9 @@ test("配置页分成四个可折叠分组，顺序与标题固定（DEC-051）"
     ["connection", "连接方式", "business"],
     ["guard", "守卫行为", "warn"],
     ["record", "记录与展示", "success"],
-    ["model", "模型与统计", "neutral"],
+    // 第四组从「模型与统计」收敛成「高级」：思考模式 / 匿名统计都是设一次
+    // 就忘的调优项，收进「高级」比单独占一个语义很窄的标题更好懂。
+    ["model", "高级", "neutral"],
   ];
   sections.forEach((section, index) => {
     const [id, title, tone] = EXPECTED[index];
@@ -1610,7 +1627,7 @@ test("每个分组标题是带 aria-expanded / aria-controls 的按钮（可点�
   }
 });
 
-test("默认只展开第一组（连接方式），其余收起（DEC-051）", async () => {
+test("默认展开前两组（连接方式 / 守卫行为），记录与高级收起（DEC-051）", async () => {
   const { tree } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
   const sections = sectionsOf(tree);
   const states = sections.map((section) => [
@@ -1619,8 +1636,8 @@ test("默认只展开第一组（连接方式），其余收起（DEC-051）", a
   ]);
   assert.deepEqual(
     states,
-    [["connection", "true"], ["guard", "false"], ["record", "false"], ["model", "false"]],
-    "首次访问应只展开「连接方式」——它是唯一回答「连到哪」的一组；其余设一次就忘",
+    [["connection", "true"], ["guard", "true"], ["record", "false"], ["model", "false"]],
+    "首次访问应展开「连接方式」与「守卫行为」——前两组是日常要动的；记录与高级设一次就忘",
   );
 });
 
@@ -1633,7 +1650,8 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   // 因为 row() 的标题藏在 `rowText > rowTitle` 两层里。
   const EXPECTED = {
     connection: ["使用免费模型", "服务提供方", "模型", "API Key", "生效端点", "密钥保存位置"],
-    guard: ["启用守卫", "真正拦截", "人工审核比例", "决策模型参与点"],
+    // 「真正拦截」已并入「工具授权」三态；新增「自动审查回退」。
+    guard: ["启用守卫", "工具授权", "自动审查回退", "人工审核比例", "决策模型参与点"],
     record: ["决策历史", "审批卡正文可读化"],
     model: ["思考模式", "匿名统计"],
   };
@@ -1648,6 +1666,8 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   }
 
   // 反向：某项**不该**出现在别的组里（防止「两项都写上、反正都在页面上」）。
+  // 另外「工具授权」也不能再作为决策点卡片出现在参与点列表里——它在
+  // 「守卫行为」有自己的三态控件，重复列一次就是这次要删掉的冗余。
   const CROSS = [
     ["启用守卫", "connection"],
     ["思考模式", "connection"],
@@ -1705,10 +1725,10 @@ test("分组展开状态记在 localStorage，刷新后不弹回（DEC-051）", 
   assert.equal(typeof i18n.readSectionOpen, "function", "readSectionOpen 应挂在 i18n 探针上");
   assert.equal(typeof i18n.writeSectionOpen, "function", "writeSectionOpen 应挂在 i18n 探针上");
 
-  // 没有 localStorage 时回落到默认值：只展开「连接方式」。
+  // 没有 localStorage 时回落到默认值：展开前两组（日常要动的两组）。
   assert.deepEqual(i18n.readSectionOpen(), {
     connection: true,
-    guard: false,
+    guard: true,
     record: false,
     model: false,
   });
@@ -1731,7 +1751,7 @@ test("分组展开状态记在 localStorage，刷新后不弹回（DEC-051）", 
     store[i18n.SECTION_OPEN_KEY] = "{not json";
     assert.deepEqual(i18n.readSectionOpen(), {
       connection: true,
-      guard: false,
+      guard: true,
       record: false,
       model: false,
     });
@@ -2940,4 +2960,384 @@ test("图表：读数元素不能塞进 chartBox 的样式参数（真机白屏�
     [],
     `样式对象里出现了 React 元素的键，说明有元素被当成样式展开：${JSON.stringify(offenders.slice(0, 2))}`,
   );
+});
+
+
+// ===========================================================================
+// 强制安全核心 / 工具授权 / 自动审查回退（本次新增）
+// ===========================================================================
+
+/** 宿主模型库（GET /guard-models）的一份目录，shape 与 lib/guard/fallback.js 一致。 */
+function guardCatalogFixture(over = {}) {
+  return {
+    available: true,
+    providers: [
+      {
+        id: "primary",
+        name: "Primary",
+        models: [
+          {
+            id: "m1",
+            name: "Model One",
+            // 初始目录里 reasoningEfforts 是空数组；带 query 那一次才补上。
+            // 这里直接给全，方便断言「下拉里有档位」。
+            reasoningEfforts: [
+              { id: "low", name: "Low" },
+              { id: "high", name: "High" },
+            ],
+          },
+        ],
+      },
+    ],
+    unavailableReason: "",
+    status: "ok",
+    ...over,
+  };
+}
+
+/** 一份带「回退到指定模型」选择的草稿（注入 draftState 槽位用）。 */
+function draftWith(over = {}) {
+  return {
+    enabled: true,
+    mode: "enforce",
+    thinkMode: "never",
+    telemetryLevel: "daily",
+    decisionsTabEnabled: true,
+    approvalDetailReadable: true,
+    serverProvider: false,
+    tolerance: "default",
+    guardEnabled: true,
+    pointAuthorize: "observe",
+    guardFallback: "session",
+    guardFallbackProvider: "",
+    guardFallbackModel: "",
+    guardFallbackReasoningEffort: "",
+    model: "",
+    ...over,
+  };
+}
+
+/** 按按钮文字找某个按钮（只在给定子树里找）。 */
+function buttonLabeled(node, label) {
+  return findNode(node, (item) => {
+    if (item?.type !== "button") return false;
+    return collectText(item).join("").trim() === label;
+  });
+}
+
+test("工具授权：off/observe/enforce 三态同步写 /config 的三个键", async () => {
+  // 「真正拦截」那个开关已并入这一条：同一个问题只留一个入口。点哪一档，
+  // 就同时写 guardEnabled / mode / pointAuthorize —— 落盘后只有一种解释。
+  const { tree } = await render(stateWith({ points: { authorize: "observe", retrieval: "off" } }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  const guardSection = sectionsOf(tree).find((section) => section.props["data-section"] === "guard");
+  assert.ok(guardSection !== undefined, "没找到「守卫行为」分组");
+
+  // 三态控件是带 aria-pressed 的分段按钮，文字就是三档中文名。
+  const segLabels = ["关闭", "观察", "生效"];
+  const segs = segLabels.map((label) => buttonLabeled(guardSection, label));
+  segs.forEach((node, index) => {
+    assert.ok(node !== null, `缺少「${segLabels[index]}」这一档`);
+    assert.equal(typeof node.props["aria-pressed"], "boolean", "三态按钮应带 aria-pressed");
+  });
+  // 服务端生效值是 observe → 「观察」被点亮，其余不亮。
+  assert.equal(segs[1].props["aria-pressed"], true, "服务端 points.authorize=observe 时「观察」应点亮");
+  assert.equal(segs[0].props["aria-pressed"], false);
+  assert.equal(segs[2].props["aria-pressed"], false);
+
+  const stub = stubFetch();
+  try {
+    segs[2].props.onClick(); // 点「生效」
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+
+  const configCall = stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config"));
+  assert.ok(configCall !== undefined, "工具授权应走 PUT /config");
+  const body = JSON.parse(configCall.init.body);
+  assert.deepEqual(
+    { guardEnabled: body.guardEnabled, mode: body.mode, pointAuthorize: body.pointAuthorize },
+    { guardEnabled: true, mode: "enforce", pointAuthorize: "enforce" },
+    `「生效」应同步写三个键，实际：${configCall.init.body}`,
+  );
+  // 三态是 /config 的事，不该顺带写一次 /decisions（那会变成两处状态源）。
+  assert.equal(
+    stub.calls.some((item) => item.url.endsWith("/api/decision-engine/decisions")),
+    false,
+    "工具授权不该走 /decisions",
+  );
+
+  // 观察 → shadow。用一个新渲染取按钮（桩的 setState 是空操作，同一棵树不会重绘）。
+  // 服务端当前是 enforce，点「观察」才是真的改动（否则 patch 与服务端一致，
+  // 自动保存不会发请求——那本身也是正确行为）。
+  const second = await render(stateWith({ mode: "enforce", points: { authorize: "enforce", retrieval: "off" } }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  const guard2 = sectionsOf(second.tree).find((section) => section.props["data-section"] === "guard");
+  const stub2 = stubFetch();
+  try {
+    buttonLabeled(guard2, "观察").props.onClick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub2.restore();
+  }
+  const body2 = JSON.parse(
+    stub2.calls.find((item) => item.url.endsWith("/api/decision-engine/config")).init.body,
+  );
+  assert.equal(body2.mode, "shadow", "「观察」应把顶层 mode 同步成 shadow");
+  assert.equal(body2.pointAuthorize, "observe");
+  assert.equal(body2.guardEnabled, true);
+});
+
+test("工具授权文案：不承诺 off/observe 也有拦截保护", async () => {
+  // 安全承诺必须是**可核对的事实**：off 完全不拦、observe 只记录。
+  const { text } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  assert.ok(
+    text.includes("生效模式下强制安全约束不可被回退策略覆盖"),
+    `应说明强制约束只在生效模式下成立，实际：\n${text.slice(0, 900)}`,
+  );
+  assert.ok(
+    text.includes("关闭或观察不提供插件拦截保护"),
+    "应明确 off/observe 没有插件拦截保护",
+  );
+  assert.ok(
+    text.includes("权限必需的人工审批不会被代替"),
+    "回退说明应写明人工审批不会被代批",
+  );
+  // 旧的、过度的承诺不该还留着。
+  assert.equal(text.includes("三种都保持强制安全核心开启"), false, "旧的过度承诺文案应删掉");
+});
+
+test("决策模型参与点：隐藏重复的「工具授权」，其余点保留", async () => {
+  const { tree } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  const points = findNode(tree, (node) => node.props?.key === "points");
+  assert.ok(points !== null, "没找到参与点容器");
+  // 用**决策点卡片**里的专属文案判断，而不是「工具授权」四个字：容器头部
+  // 有一句「工具授权由上方单独控制」，那是有意保留的说明。
+  const bodyText = textsOf(points).join("\n");
+  assert.ok(bodyText.includes("检索必要性"), "其它决策点应保留在列表里");
+  assert.equal(
+    bodyText.includes("在工具执行前判断风险"),
+    false,
+    "工具授权已有独立控件，不该在参与点列表里重复出现",
+  );
+  assert.ok(bodyText.includes("工具授权由上方单独控制"), "应说明工具授权在哪控制");
+});
+
+test("自动审查回退：四策略可选，默认 session", async () => {
+  const { text, controls } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  const values = new Set();
+  for (const node of controls) {
+    if (node.type !== "select") continue;
+    const labels = (node.children ?? []).map((child) => textsOf(child).join(""));
+    if (!labels.some((label) => label.includes("沿用当前会话模型"))) continue;
+    for (const option of node.children ?? []) {
+      if (option?.type === "option") values.add(option.props.value);
+    }
+    // 默认值是 session：与服务端 DEFAULTS 一致。
+    assert.equal(node.props.value, "session", "回退策略默认应是 session");
+  }
+  assert.deepEqual(
+    [...values].sort(),
+    ["allow", "deny", "model", "session"],
+    `四策略应齐全，实际：${[...values].join(", ")}（文案：${text.slice(0, 600)}）`,
+  );
+});
+
+test("回退到指定模型：provider/model/effort 既可从宿主目录下拉，也可手填", async () => {
+  const { tree } = await render(stateWith({}), {
+    slots: {
+      [SLOTS.decisions]: decisionsFixture,
+      // 槽位 5 = draftState：注入「已选 model 策略 + 已选 provider/model」。
+      5: draftWith({
+        guardFallback: "model",
+        guardFallbackProvider: "primary",
+        guardFallbackModel: "m1",
+        guardFallbackReasoningEffort: "low",
+      }),
+      [SLOTS.guardCatalog]: guardCatalogFixture(),
+    },
+  });
+
+  // 三格都能在下拉里看到宿主目录的值（provider / model / effort）。
+  const options = new Set();
+  (function walk(node) {
+    if (node === null || node === undefined || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === "option") options.add(`${node.props.value}`);
+    walk(node.children);
+  })(tree);
+  for (const expected of ["primary", "m1", "low", "high"]) {
+    assert.ok(options.has(expected), `下拉里应有「${expected}」，实际：${[...options].join(", ")}`);
+  }
+
+  // 手填：三格各有一个 input（写同一格），失焦立即落盘。
+  const inputs = [];
+  (function walk(node) {
+    if (node === null || node === undefined || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === "input" && node.props.placeholder === "也可手填") inputs.push(node);
+    walk(node.children);
+  })(tree);
+  assert.equal(inputs.length, 3, `provider/model/effort 应各有一个手填框，实际 ${inputs.length} 个`);
+
+  const stub = stubFetch();
+  try {
+    // 第一个 = provider 那一格。
+    inputs[0].props.onChange({ target: { value: "acme/proxy" } });
+    inputs[0].props.onBlur();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+  const body = JSON.parse(
+    stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config")).init.body,
+  );
+  assert.equal(body.guardFallbackProvider, "acme/proxy", "手填的 provider 应写进 patch");
+  assert.equal(body.guardFallback, "model", "策略本身应一起提交");
+  assert.equal(body.guardFallbackModel, "m1", "未改动的格子按草稿原样提交");
+});
+
+test("宿主模型库不可用：说明原因，手填框仍然可用", async () => {
+  const { tree, text } = await render(stateWith({}), {
+    slots: {
+      [SLOTS.decisions]: decisionsFixture,
+      5: draftWith({ guardFallback: "model", guardFallbackProvider: "custom-x", guardFallbackModel: "m-x" }),
+      [SLOTS.guardCatalog]: {
+        available: false,
+        providers: [],
+        unavailableReason: "host-model-catalog-unavailable",
+        status: "unavailable",
+      },
+    },
+  });
+  assert.ok(text.includes("宿主模型库不可用"), "应说明宿主模型库不可用");
+  assert.ok(text.includes("host-model-catalog-unavailable"), "应把 unavailableReason 显示出来");
+  const manual = [];
+  (function walk(node) {
+    if (node === null || node === undefined || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === "input" && node.props.placeholder === "也可手填") manual.push(node);
+    walk(node.children);
+  })(tree);
+  assert.equal(manual.length, 3, "目录不可用时三格仍应是可手填的 input");
+});
+
+test("guardModelsPath：只在选定 provider+model 时才带 query", async () => {
+  const { i18n } = await render(stateWith({}));
+  assert.equal(i18n.guardModelsPath("", ""), "/guard-models");
+  assert.equal(i18n.guardModelsPath("primary", ""), "/guard-models");
+  assert.equal(
+    i18n.guardModelsPath("primary", "m 1"),
+    "/guard-models?provider=primary&model=m+1",
+    "带查询时要正确编码（空格 → +）",
+  );
+});
+
+test("guardAuthorizePatch：观察→shadow，关闭/生效→enforce，且都打开安全核心", async () => {
+  const { i18n } = await render(stateWith({}));
+  assert.deepEqual(i18n.guardAuthorizePatch("observe"), {
+    guardEnabled: true,
+    mode: "shadow",
+    pointAuthorize: "observe",
+  });
+  assert.deepEqual(i18n.guardAuthorizePatch("enforce"), {
+    guardEnabled: true,
+    mode: "enforce",
+    pointAuthorize: "enforce",
+  });
+  assert.deepEqual(i18n.guardAuthorizePatch("off"), {
+    guardEnabled: true,
+    mode: "enforce",
+    pointAuthorize: "off",
+  });
+  // 未知值按「关闭」处理（服务端白名单只认这三档）。
+  assert.equal(i18n.guardAuthorizePatch("bogus").pointAuthorize, "off");
+});
+
+test("设置页字体：Sarasa Gothic SC 在第一位，系统字体兜底；正文 14px", async () => {
+  const { tree } = await render(stateWith({}));
+  const family = String(tree.props.style?.fontFamily ?? "");
+  // 首项可能是带引号的字体名（`"Sarasa Gothic SC", …`），去掉引号再比。
+  const first = family.split(",")[0].trim().replace(/^["']|["']$/g, "");
+  assert.equal(first, "Sarasa Gothic SC", `字体链首项应是 Sarasa Gothic SC，实际：${family}`);
+  assert.ok(family.includes("system-ui"), "Sarasa 之后应回落到 system-ui");
+  assert.ok(family.includes("sans-serif"), "最后应有 sans-serif 兜底");
+  assert.equal(tree.props.style?.fontSize, "14px", "正文基准字号应为 14px");
+});
+
+test("模型行：下拉保留列表，同时有真正可手填的 input", async () => {
+  const { tree } = await render(stateWith({ provider: "siliconflow", providerLabel: "硅基流动" }));
+  const manual = findNode(
+    tree,
+    (node) => node.type === "input" && node.props.placeholder === "或直接手填模型名",
+  );
+  assert.ok(manual !== null, "模型行缺少手填输入框（界面写着「可手填」就必须真能填）");
+  // 下拉仍在：手填不是替代列表。
+  const select = findNode(
+    tree,
+    (node) => node.type === "select" && (node.children ?? []).some((child) => child?.type === "option" && child.props.value === ""),
+  );
+  assert.ok(select !== null, "模型下拉应保留");
+
+  const stub = stubFetch();
+  try {
+    manual.props.onChange({ target: { value: "my-own-model" } });
+    manual.props.onBlur();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+  const body = JSON.parse(
+    stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config")).init.body,
+  );
+  // 硅基流动的模型字段名由服务端 providerCatalog 下发。
+  assert.equal(body.siliconflowModel, "my-own-model", `手填模型应写进它自己那一格，实际：${JSON.stringify(body)}`);
+});
+
+test("宿主模型库：逐字符输入只在停手 350ms 后发一次查询（防抖）", async () => {
+  const { i18n } = await render(stateWith({}));
+  const calls = [];
+  const base = { guardFallback: "model", guardFallbackProvider: "p", guardFallbackModel: "m1" };
+  // 用户还在打字：上一次的计时器被清理，只有最后一次真正发出。
+  const cleanupFirst = i18n.scheduleGuardCatalogLoad({ draft: base, tab: "config", load: (q) => calls.push(q) });
+  cleanupFirst();
+  const cleanupSecond = i18n.scheduleGuardCatalogLoad({
+    draft: { ...base, guardFallbackModel: "m2" },
+    tab: "config",
+    load: (q) => calls.push(q),
+  });
+  await new Promise((resolve) => setTimeout(resolve, i18n.GUARD_CATALOG_DEBOUNCE_MS + 80));
+  cleanupSecond();
+  assert.deepEqual(calls, [{ provider: "p", model: "m2" }], `只应发出最后一次查询，实际：${JSON.stringify(calls)}`);
+});
+
+test("宿主模型库：补档位失败保留目录，只标 effortsUnavailable", async () => {
+  const { i18n } = await render(stateWith({}));
+  const previous = guardCatalogFixture();
+  const kept = i18n.reduceGuardCatalog(
+    previous,
+    { available: false, providers: [] },
+    { withQuery: true, provider: "primary", model: "m1" },
+  );
+  assert.equal(kept.effortsUnavailable, true, "失败时应标 effortsUnavailable");
+  assert.deepEqual(kept.providers, previous.providers, "目录必须原样保留（清空会让已选项消失）");
+});
+
+test("守卫关闭时：工具授权三态禁用，且首句说明没有拦截保护", async () => {
+  const { tree, text } = await render(stateWith({ enabled: false }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  assert.ok(
+    text.includes("守卫未启用：当前不提供任何拦截保护"),
+    `守卫关闭时 hint 首句必须说清没有拦截，实际：\n${text.slice(0, 800)}`,
+  );
+  const guard = sectionsOf(tree).find((section) => section.props["data-section"] === "guard");
+  for (const label of ["关闭", "观察", "生效"]) {
+    const button = buttonLabeled(guard, label);
+    assert.ok(button !== null, `缺少「${label}」按钮`);
+    assert.equal(button.props.disabled, true, `守卫关闭时「${label}」应禁用（点了也不会有拦截）`);
+  }
 });

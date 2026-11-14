@@ -1926,3 +1926,186 @@ test("英文界面下这个滑块不残留中文（服务端中文标签有词�
   assert.match(text, /Review tolerance/, "滑块标题应显示英文");
   assert.match(text, /Autonomous|Relaxed|Cautious/, "四个段应显示英文");
 });
+
+// ------------------------------------------------------------------ 排版（字体与字号）
+
+/**
+ * 这一组防的是**决策历史页的观感**，与数据/折叠/排序逻辑无关：
+ *
+ *   1. 用户可读文本不能落到浏览器默认的宋体上——字体族必须写成
+ *      「Sarasa Gothic SC → system-ui → sans-serif」这条**后备链**；
+ *   2. 表格与展开明细里的记录（时间、决策点、裁决原因、问答）是**给人读的
+ *      记录**，不是代码，不能整片用等宽字体；
+ *   3. 字号有地板：11px 的中文在真机上糊成一团，正文 13–14px 才读得下去。
+ *
+ * 做法：把内联样式当**契约**来断言（客户端只有内联样式，没有 CSS 类可查）。
+ * 只查 DecisionsView 自己的渲染树，不去动统计图/设置页的样式。
+ */
+
+/** 取节点的内联样式对象（没有就给空对象）。 */
+function inlineStyle(node) {
+  const style = node?.props?.style;
+  return style !== null && typeof style === "object" ? style : {};
+}
+
+/** 把 `fontSize` 解析成数字；没写就返回 NaN（= 继承，交给调用方另行断言）。 */
+function fontSizeOf(node) {
+  return Number.parseFloat(String(inlineStyle(node).fontSize ?? ""));
+}
+
+/** 深度遍历，收集渲染树里所有内联 `fontFamily` 字符串。 */
+function collectFontFamilies(node, out = []) {
+  if (node === null || node === undefined || node === false) return out;
+  if (Array.isArray(node)) {
+    for (const child of node) collectFontFamilies(child, out);
+    return out;
+  }
+  if (typeof node === "object") {
+    const family = inlineStyle(node).fontFamily;
+    if (typeof family === "string") out.push(family);
+    if (node.children !== undefined) collectFontFamilies(node.children, out);
+  }
+  return out;
+}
+
+/** 页面字体链：装了 Sarasa 用它，没装落到系统 UI 字体（不是宋体）。 */
+const PAGE_FONT_CHAIN = /Sarasa Gothic SC/;
+
+/**
+ * 找**最内层**那个文本匹配的 `div`。
+ *
+ * `findNodes` 是前序遍历：外层容器（`decisionsWrap`）的文本包含全部子文本，
+ * 直接 `.find` 会命中外层容器的字号，而这一组要验的是**提示行自己的**样式。
+ * 深处节点在后，取最后一个即最内层。
+ */
+function findInnermostDiv(tree, match) {
+  const hits = findNodes(tree, "div").filter((node) => match(String(collectText(node).join(""))));
+  return hits.length === 0 ? null : hits[hits.length - 1];
+}
+
+test("决策历史页根容器用 Sarasa Gothic SC → 系统字体，正文不小于 14px", async () => {
+  const { tree } = await renderDecisions({
+    page: { entries: [entry()], total: 1 },
+    slots: { [SLOTS.loading]: false },
+  });
+  const style = inlineStyle(tree);
+  // 整页（表头/行/空态/明细）都从这一层继承字体，所以这一条是总闸。
+  assert.match(
+    String(style.fontFamily ?? ""),
+    PAGE_FONT_CHAIN,
+    `根容器应把 Sarasa Gothic SC 放在首位，实际：${style.fontFamily}`,
+  );
+  assert.match(String(style.fontFamily), /system-ui/, "没装 Sarasa 时应落到 system-ui");
+  assert.match(String(style.fontFamily), /sans-serif/, "最后一级应是 sans-serif，而不是宋体");
+  assert.ok(fontSizeOf(tree) >= 14, `正文基准应不小于 14px，实际：${style.fontSize}`);
+  assert.ok(Number(style.lineHeight) >= 1.4, `行高应舒适（>=1.4），实际：${style.lineHeight}`);
+  // 之前修过的那条不能回退：根容器不能变成裁剪/滚动祖先（表头粘性靠它）。
+  assert.equal(style.overflow, undefined, "根容器不能设 overflow");
+  assert.equal(style.overflowY, undefined, "根容器不能设 overflowY");
+  assert.equal(style.height, undefined, "根容器不能定高");
+});
+
+test("表格、表头与单元格字号不低于 12px，且不用等宽字体", async () => {
+  const { tree } = await renderDecisions({
+    page: { entries: [entry(), entry({ seq: 2 })], total: 2 },
+    slots: { [SLOTS.loading]: false },
+  });
+
+  const table = findNodes(tree, "table")[0];
+  assert.ok(table, "应渲染明细表");
+  assert.ok(fontSizeOf(table) >= 13, `表格正文字号应不低于 13px，实际：${inlineStyle(table).fontSize}`);
+
+  const ths = findNodes(tree, "th");
+  assert.ok(ths.length >= 7, `表头应有 7 列，实际只有 ${ths.length} 列`);
+  for (const th of ths) {
+    assert.ok(fontSizeOf(th) >= 12, `表头字号应不低于 12px，实际：${inlineStyle(th).fontSize}`);
+    assert.equal(inlineStyle(th).fontFamily, "inherit", "表头应继承页面字体");
+    // 冻结的三个条件仍在（这一组用例只关心排版，但顺手守住不回退）。
+    assert.equal(inlineStyle(th).position, "sticky", "表头必须仍是 sticky");
+  }
+
+  const tds = findNodes(tree, "td");
+  assert.ok(tds.length > 0, "应有数据单元格");
+  for (const td of tds) {
+    // 单元格不写 fontSize → 从表格的 13px 继承；字族必须显式继承页面字体。
+    const size = fontSizeOf(td);
+    assert.ok(Number.isNaN(size) || size >= 13, `单元格字号应 >=13px（或继承），实际：${size}`);
+    assert.equal(inlineStyle(td).fontFamily, "inherit", "单元格是给人读的记录，不能是等宽字体");
+  }
+});
+
+test("展开明细用页面字体、字号不低于 13px（记录不是代码块）", async () => {
+  const { tree, text } = await renderDecisions({
+    page: {
+      entries: [
+        entry({
+          seq: 1,
+          // 真实明细里既有中文审计原因，也有 JSON 化的现场/问答。
+          detail: "decision-engine: 风险低，放行",
+          content: { state: { goal: "run tests", step: 3 } },
+        }),
+      ],
+      total: 1,
+    },
+    slots: { [SLOTS.loading]: false, [SLOTS.expanded]: "rec-1" },
+  });
+  assert.ok(text.includes("风险低，放行"), `明细应展开，实际文本：\n${text.slice(0, 900)}`);
+
+  // 明细块靠 `whiteSpace: pre-wrap` 区分于其它 div（内容要保留换行）。
+  const detail = findNodes(tree, "div").find((node) => inlineStyle(node).whiteSpace === "pre-wrap");
+  assert.ok(detail, "展开后应渲染明细块");
+  const style = inlineStyle(detail);
+  assert.equal(style.fontFamily, "inherit", "明细是用户可读文本，应继承页面字体而不是等宽");
+  assert.ok(fontSizeOf(detail) >= 13, `明细字号应不低于 13px，实际：${style.fontSize}`);
+  assert.ok(Number(style.lineHeight) >= 1.5, `明细行高应舒适（>=1.5），实际：${style.lineHeight}`);
+});
+
+test("空态与错误提示的字号不低于 12px", async () => {
+  const empty = await renderDecisions({
+    page: { entries: [], total: 0 },
+    slots: { [SLOTS.loading]: false },
+  });
+  const emptyNode = findInnermostDiv(empty.tree, (text) => text === "本会话还没有决策记录");
+  assert.ok(emptyNode, "应渲染空态");
+  assert.ok(fontSizeOf(emptyNode) >= 12, `空态字号应不低于 12px，实际：${inlineStyle(emptyNode).fontSize}`);
+
+  const failed = await renderDecisions({
+    sessionFails: true,
+    slots: { [SLOTS.loading]: false },
+  });
+  const errorNode = findInnermostDiv(failed.tree, (text) => text.startsWith("读取决策历史失败"));
+  assert.ok(errorNode, "应渲染错误提示");
+  assert.ok(fontSizeOf(errorNode) >= 12, `错误提示字号应不低于 12px，实际：${inlineStyle(errorNode).fontSize}`);
+});
+
+test("截断提示与记录文件路径的字号不低于 12px", async () => {
+  const { tree } = await renderDecisions({
+    page: { entries: [entry()], total: 500, truncated: true, file: "/tmp/decisions.jsonl" },
+    slots: { [SLOTS.loading]: false },
+  });
+  const truncated = findInnermostDiv(tree, (text) => text === "还有更多记录没有显示");
+  assert.ok(truncated, "被截断时应有提示");
+  assert.ok(fontSizeOf(truncated) >= 12, `截断提示字号应不低于 12px，实际：${inlineStyle(truncated).fontSize}`);
+  const fileNote = findInnermostDiv(tree, (text) => text.includes("/tmp/decisions.jsonl"));
+  assert.ok(fileNote, "应显示记录文件路径");
+  assert.ok(fontSizeOf(fileNote) >= 12, `路径字号应不低于 12px，实际：${inlineStyle(fileNote).fontSize}`);
+});
+
+test("决策历史树里没有任何用户可读文本退化成等宽字体", async () => {
+  // 整页扫描（含头部滑块、表格、展开明细）：`ui-monospace` 这类字族一旦
+  // 出现在这个子树里，就是把记录当代码渲染——中文段落会一行只剩十来个字。
+  const { tree } = await renderDecisions({
+    page: {
+      entries: [
+        entry({ seq: 1, detail: "decision-engine: 风险低，放行" }),
+        entry({ seq: 2, cached: true }),
+      ],
+      total: 2,
+      tolerance: tolerancePage(),
+    },
+    slots: { [SLOTS.loading]: false, [SLOTS.expanded]: "rec-1" },
+  });
+
+  const offenders = collectFontFamilies(tree).filter((family) => /mono/i.test(family));
+  assert.deepEqual(offenders, [], `决策历史页不该用等宽字体渲染记录，实际：${offenders.join(" | ")}`);
+});

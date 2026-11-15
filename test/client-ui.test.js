@@ -717,8 +717,9 @@ test("provider 下拉包含全部预设，默认 bamboonode", async () => {
   const options = providerSelect.children
     .filter((child) => child !== null && typeof child === "object" && child.type === "option")
     .map((child) => child.props.value);
-  // 下拉必须与 providers.js 的预设清单完全一致：多一个少一个都是漏改。
-  assert.deepEqual(options, [...PROVIDER_IDS]);
+  // 下拉必须与 providers.js 的预设清单完全一致（再加上第一项「免费模型」）：
+  // 多一个少一个都是漏改。
+  assert.deepEqual(options, ["server", ...PROVIDER_IDS]);
 });
 
 test("选 system one 时下拉回显它、且不出现 custom 专属字段", async () => {
@@ -1760,7 +1761,7 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   // 每一组**至少**要有这些项出现在它的正文里。用文本判断归属，
   // 因为 row() 的标题藏在 `rowText > rowTitle` 两层里。
   const EXPECTED = {
-    connection: ["使用免费模型", "服务提供方", "模型", "API Key", "生效端点", "密钥保存位置"],
+    connection: ["免费模型（服务端下发）", "服务提供方", "模型", "API Key", "生效端点", "密钥保存位置"],
     // 「真正拦截」已并入「工具授权」三态；新增「自动审查回退」。
     // T1：区块标题由「人工审核比例」改为「安全档位」。
     guard: ["启用守卫", "工具授权", "自动审查回退", "安全档位", "决策模型参与点"],
@@ -1785,7 +1786,7 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   const CROSS = [
     ["启用守卫", "connection"],
     ["决策模型思考", "connection"],
-    ["使用免费模型", "guard"],
+    ["免费模型（服务端下发）", "guard"],
     ["决策历史", "model"],
     ["日志分文件", "guard"],
   ];
@@ -1970,26 +1971,16 @@ test("配置页与统计页的容器不限制最大宽度（DEC-040）", async (
   }
 });
 
-test("「使用免费模型」下面有一行小字「可能会失效」，且就在这一行里（DEC-037）", async () => {
-  const { tree } = await render(stateWith({}));
-  const row = findNode(tree, (item) => {
-    const children = Array.isArray(item?.children) ? item.children : [];
-    const head = children[0];
-    return head !== undefined && head !== null && collectText(head).includes("使用免费模型");
-  });
-  assert.ok(row !== null && row !== undefined, "没有找到「使用免费模型」这一行");
-  const rowText = row.children[0];
-  const lines = collectText(rowText);
-  const noteIndex = lines.indexOf("可能会失效");
-  assert.ok(noteIndex >= 0, `小字不在「使用免费模型」的 rowText 里；实际：${JSON.stringify(lines)}`);
-  // 标题 → 说明（serverHint）→ 小字：小字必须排在说明**之后**，不能抢在
-  // 说明前面（那句说明才是「这个开关干什么」，小字是它的风险注脚）。
-  assert.ok(
-    noteIndex > lines.indexOf("使用免费模型"),
-    "小字应排在标题之后",
-  );
-  // 而且它只出现一次（不是页面上某个别的地方也有这个词）。
-  assert.equal(lines.filter((line) => line === "可能会失效").length, 1, "「可能会失效」在行内出现了多次");
+test("「免费模型」是 provider 下拉的第一项，选中时显示「可能会失效」（DEC-037）", async () => {
+  const { tree, text } = await render(stateWith({ serverProvider: serverProviderWith({}) }));
+  const select = controlOfRow(tree, "服务提供方");
+  assert.ok(select !== undefined, "没有找到「服务提供方」下拉");
+  const options = select.children
+    .filter((child) => child !== null && typeof child === "object" && child.type === "option")
+    .map((child) => child.props.value);
+  assert.equal(options[0], "server", "免费模型必须是下拉第一项");
+  assert.equal(select.props.value, "server", "已启用免费模型时应回显该选项");
+  assert.ok(text.includes("可能会失效"), `缺少免费模型的风险注脚：\n${text.slice(0, 700)}`);
 });
 
 
@@ -2020,20 +2011,52 @@ function serverProviderWith(over) {
   };
 }
 
-test("「使用免费模型」开关默认关，且说明用的是本地配置", async () => {
+test("免费模型默认关闭：provider 下拉停在本地 provider，且没有「重新获取」", async () => {
   // 默认关是产品约束（不是风格）：装了插件的人可能已经在用自己的 key，
   // 默认开启会把他们悄悄换成服务商的账号，而他们只会看到「key 好像失效了」。
-  const { text, tree } = await render(stateWith({}));
-  assert.ok(text.includes("使用免费模型"), `缺少开关行：\n${text.slice(0, 600)}`);
-  const toggle = toggleOfRow(tree, "使用免费模型");
-  assert.ok(toggle !== undefined, "没有找到「使用免费模型」的开关控件");
-  assert.equal(toggle.props["aria-pressed"], false, "开关默认必须是关");
-  assert.ok(
-    text.includes("关闭：使用下方的本地配置（与现在完全一致）"),
-    `关闭时未说明回落行为：\n${text.slice(0, 600)}`,
-  );
-  // 关着的时候不该有「重新获取」——它此时什么也不会改变。
+  const { tree } = await render(stateWith({}));
+  const select = controlOfRow(tree, "服务提供方");
+  assert.ok(select !== undefined, "没有找到「服务提供方」下拉");
+  assert.equal(select.props.value, "bamboonode", "默认应停在本地 provider");
+  // 关闭时不该有「重新获取」——它此时什么也不会改变。
   assert.equal(hasButtonLabeled(tree, "重新获取"), false, "关闭时不该出现「重新获取」按钮");
+});
+
+test("选「免费模型」会 PUT /config 且带上 serverProvider: true", async () => {
+  const { tree } = await render(stateWith({}));
+  const select = controlOfRow(tree, "服务提供方");
+  assert.ok(select !== undefined, "没有找到「服务提供方」下拉");
+
+  const stub = stubFetch();
+  try {
+    select.props.onChange({ target: { value: "server" } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+  const call = stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config"));
+  assert.ok(call !== undefined, `应 PUT /config，实际：${stub.calls.map((c) => c.url).join(", ")}`);
+  const body = JSON.parse(call.init.body);
+  assert.equal(body.serverProvider, true, `patch 应带上 serverProvider: true，实际：${call.init.body}`);
+});
+
+test("从免费模型切回真实 provider：serverProvider 变 false 且 provider 更新", async () => {
+  const { tree } = await render(stateWith({ serverProvider: serverProviderWith({}) }));
+  const select = controlOfRow(tree, "服务提供方");
+  assert.equal(select.props.value, "server", "已启用时应回显 server");
+
+  const stub = stubFetch();
+  try {
+    select.props.onChange({ target: { value: "systemone" } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+  const call = stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config"));
+  assert.ok(call !== undefined, `应 PUT /config，实际：${stub.calls.map((c) => c.url).join(", ")}`);
+  const body = JSON.parse(call.init.body);
+  assert.equal(body.serverProvider, false, "切回真实 provider 必须关掉下发");
+  assert.equal(body.provider, "systemone", "provider 应更新为新选择");
 });
 
 test("服务端下发生效时显示地址、模型与 key 末四位，且树里没有明文 key", async () => {
@@ -2113,31 +2136,9 @@ test("服务端生效时，手动输入 key 与 provider 下拉都还在（手�
   const { tree } = await render(stateWith({ serverProvider: serverProviderWith({}) }));
   const keyInput = findNode(tree, (node) => node.type === "input" && node.props.type === "password");
   assert.ok(keyInput !== null && keyInput !== undefined, "服务端生效时 API Key 输入框被隐藏了");
-  // 不按具体 provider 名匹配：默认值历史上在 bamboonode / systemone 之间来回
-  // 换过（DEC-031 与其撤销），钉死名字会让这条 DEC-030 验收随默认值翻车。
-  const select = findNode(
-    tree,
-    (node) => node.type === "select" && PROVIDER_IDS.includes(node.props.value),
-  );
+  // 免费模式合并进下拉后，生效时下拉的当前值就是虚拟项 `server`。
+  const select = findNode(tree, (node) => node.type === "select" && node.props.value === "server");
   assert.ok(select !== null && select !== undefined, "服务端生效时 provider 下拉消失或不再回显当前值");
-});
-
-test("播开关会 PUT /config 且带上 serverProvider: true", async () => {
-  const { tree } = await render(stateWith({}));
-  const toggle = toggleOfRow(tree, "使用免费模型");
-  assert.ok(toggle !== undefined, "没有找到「使用免费模型」的开关");
-
-  const stub = stubFetch();
-  try {
-    toggle.props.onClick();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  } finally {
-    stub.restore();
-  }
-  const call = stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config"));
-  assert.ok(call !== undefined, `应 PUT /config，实际：${stub.calls.map((c) => c.url).join(", ")}`);
-  const body = JSON.parse(call.init.body);
-  assert.equal(body.serverProvider, true, `patch 应带上 serverProvider: true，实际：${call.init.body}`);
 });
 
 test("即使服务端误把明文 key 塞进响应，界面也不会显示它", async () => {
@@ -3813,3 +3814,50 @@ test("探不到宿主基色：不写 --de-select-scheme，交给 CSS 的 light d
   assert.equal(configContainer(tree).props.style, undefined, "探不到时不该写一个猜出来的值");
 });
 
+
+// ------------------------------------------------- 百炼预设（Workspace / 地域）
+
+test("选百炼时出现 Workspace ID 与地域两格，并能写回 config", async () => {
+  const { text, tree } = await render(
+    stateWith({ provider: "bailian", bailianWorkspaceId: "ws_demo", bailianRegion: "ap-southeast-1" }),
+  );
+  assert.ok(text.includes("Workspace ID"), `缺少 Workspace ID 行：\n${text.slice(0, 900)}`);
+  assert.ok(text.includes("地域"), "缺少地域行");
+  assert.ok(text.includes("maas.aliyuncs.com"), "应展示百炼端点形状");
+
+  const workspace = findNode(
+    tree,
+    (node) => node.type === "input" && node.props.placeholder === "ws_…",
+  );
+  assert.ok(workspace !== null && workspace !== undefined, "缺少 Workspace ID 输入框");
+  assert.equal(workspace.props.value, "ws_demo", "应回显服务端值");
+
+  const region = findNode(
+    tree,
+    (node) => node.type === "select" && node.props.value === "ap-southeast-1",
+  );
+  assert.ok(region !== null && region !== undefined, "地域下拉未回显");
+  const options = region.children
+    .filter((child) => child !== null && typeof child === "object" && child.type === "option")
+    .map((child) => child.props.value);
+  assert.deepEqual(options, ["cn-beijing", "ap-southeast-1"], "地域选项应来自服务端");
+
+  const stub = stubFetch();
+  try {
+    workspace.props.onChange({ target: { value: "ws_changed" } });
+    workspace.props.onBlur();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+  const call = stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config"));
+  assert.ok(call !== undefined, `应 PUT /config，实际：${stub.calls.map((c) => c.url).join(", ")}`);
+  const body = JSON.parse(call.init.body);
+  assert.equal(body.bailianWorkspaceId, "ws_changed", `patch 应带上 workspace，实际：${call.init.body}`);
+  assert.equal(body.bailianRegion, "ap-southeast-1", "patch 应带上地域");
+});
+
+test("非百炼 provider 不显示 Workspace / 地域两格", async () => {
+  const { text } = await render(stateWith({}));
+  assert.equal(text.includes("Workspace ID"), false);
+});

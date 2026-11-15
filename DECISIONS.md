@@ -2,6 +2,67 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-069 `route` 只对工具结果之后的机械步骤判断（2026-11-15）
+
+**背景**：第二轮代码审计指出 `route` 的「机械闸」`hasFreshUserInput(session) &&
+state.askedSteps.size > 0` 让新用户任务的第一步完全绕过闸门，而 state 里只有
+current/recent，没有「下一步属于机械执行」的证据。核对源码属实。
+
+**决定**：闸3 改为「最近一条相关事件是 user/message 就不判断」，去掉
+`askedSteps.size > 0` 这个前提。于是每轮第一步、以及任何带新用户输入的追问都不
+再降级；只有上一条是 tool/result（明确的机械延续）时才允许问模型。读不到事件
+（老宿主）保持旧行为——把「读不到」当成「有用户新输入」会让路由在老宿主上静默
+失效。`basis` 只在真有工具结果时写进 state，不编造依据。
+
+## DEC-068 `turnStop` / `delegate` / `compact` 补证据并收紧默认（2026-11-15）
+
+**背景**：审计指出这三点的判断超出了模型能看到的证据。逐条核对：
+
+- `turnStop` 的 `pendingTools` 是硬编码 0；state 没有用户原始目标；
+  `awaiting_user` 缺席时 parse 刻意 fail-open，decide 仍可能返回 continue。
+- `delegate` 把 `payload.messages` 全量拼接，不看 `source.kind`；插件自己注入的
+  `[decision-engine-*]` 也是 role=user，可能被当成新用户任务。
+- `compact` 用单个 `distilled` 概率直接授权不可逆 prune，而 state 只有
+  「有几条超长结果」，看不到结果内容与已保留的结论。
+
+**决定**：
+
+1. `turnStop`：`pendingTools` 由 `tool/call` 与 `tool/result` 的 callId 真实配对
+   统计（只算最近一条用户消息之后，避免被中断的历史调用制造假待办）；state 增加
+   会话第一条真实用户消息作为 `goal`；`awaiting_user` 缺席或形状不合格时
+   **禁止续轮**（返回 stop）。边界未知时不续轮，与 DEC-045 的取舍一致。
+2. `delegate`：只收 `source.kind === "user"` 的消息（老宿主按 role+插件前缀兜底），
+   没有可归因用户文本就不判断；state 增加 `origin` 解释「凭什么认为有新任务」。
+3. `compact`：新增 `compactAllowPrune`（默认 **false**，运维旋钮，不进
+   `/config` 白名单）。关闭时无论 distilled 多高都返回 summarize，交给宿主摘要；
+   只有显式打开才允许按门槛 prune。理由：摘要至少把信息保成一段话，而 prune
+   不可逆，用单一概率授权删除证据不足。
+4. `skillPick` 的「没有更匹配」改用保留键 `__none__`，避免与真名为 none 的技能
+   冲突；decide 兼容旧值。
+
+## DEC-067 `cotTranslate` observe 语义、缓存键与 `skillPick`/`retrieval` 的确定性修复（2026-11-15）
+
+**背景**：第二轮代码审计列出的可确定性证明缺陷。逐条核对后修复：
+
+1. **observe 会真的跳过翻译**（审计属实，且比描述更广）：本地 `looksLikeProse`
+   短路在 `enforces()` 之前；另外缓存里存着 enforce 期的 skip 时，切到 observe
+   后命中缓存也会返回原文。现在只有 enforce 才允许改变行为；observe 一律走原
+   翻译器并记一条「本该跳过」的遥测，符合「观察模式不改变执行结果」。
+2. **缓存键碰撞**（属实）：旧键 `targetLanguage|length|slice(0,64)` 会让同长
+   同前缀的文本共用裁决，且 `sourceLanguage` 不在键里。改为
+   `问法版本|source|target|sha256(全文)`；摘要而非全文是为了不让 256 条缓存把
+   思维链全文钉在内存里。
+3. **会话归属字段名不匹配**（属实）：translate 传 `{sessionId}`，engine 只认
+   `extra.session`，付费通道的翻译决策因此永远归不到会话。改为按 engine 认的
+   字段名传字符串 id（`sessionIdOf` 本就接受字符串），不新增第二个字段名。
+4. **skillPick 接受候选外的技能名**（属实）：redirect 前校验 `suggest` 属于候选
+   集，否则记降级并放行。候选截断时保证当前请求的技能仍在清单里（替换最后
+   一项，不追加），并先去重/丢空名。
+5. **retrieval 缺少确定性保护**（属实）：`web_fetch`、查询里带 URL、以及命中时效
+   性关键词（最新/今天/版本/发布/价格/新闻/实时/latest/…）一律不问模型、直接
+   放行。模型只用于发现明显的重复检索，不单独拦下明确要求的实时查询。
+
+
 ## DEC-066 本地未知副作用不再单独触发回退模型；`job_output` 补只读契约（2026-11-15）
 
 **背景**：用户报告「decision-model 对明显安全的操作也常常无法定论，随后 fallback 到

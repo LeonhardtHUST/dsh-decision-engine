@@ -2,6 +2,36 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-070 空闲队友的消息不再被误判为「接收方权限未核验」（2026-11-15）
+
+**现象**：决策历史里出现一条 `send_message` 记录：`effect=internal_message`、
+`mandatory=requires_approval`、`reasonCode=recipient-authority-unverified`、
+`decisionSource=local_policy`、`modelEvaluation=not_requested`，文案「无法核验接收方
+权限，需要用户确认」。实际只是 lead 给 agent-team 队友发了一条普通消息。
+
+**根因**（已复现）：`buildTrustedContext()` 的 `hostLocal` 只认
+`agents.get(targetId)`，而 `agents` 服务只登记**活着的** Agent。给一个已空闲但仍可
+接续的同树子代理发消息时，`agents.get()` 返回 undefined → `hostLocal=false` →
+`downstreamIndependentApproval="unknown"` → `evaluateMandatoryPolicy()` 的
+`internal_message` 分支返回 `requires_approval`，在模型之前短路成人审。结果是
+**所有发给空闲队友的消息**都弹审批；审批策略为 never 时直接拒绝。
+
+宿主自己的 `subagents.sendMessage` 会拒绝树外或不可恢复的目标，并在投递前重校验
+发送者身份；`listDescendants()` 读的是宿主会话目录，目标在其中且
+`mode === "continuable"`，比「当前碰巧活着」是更强的本机成员证据。
+
+**决定**：`hostLocal` 改为 `targetId === rootId || Boolean(member) ||
+resident 匹配`。`verified` 仍要求同树 + continuable，`downstreamPolicyEnforced`
+仍要求全局守卫已注册；一次性 / 外部子代理仍然 requires_approval，权限边界没有
+放宽，修掉的只是「把空闲队友当成不可核验的外部接收方」这条不可能满足的条件。
+
+顺带把该 reason 的文案改为「目标不是本机可持续接续的子代理，发消息需要你确认」，
+说清到底在核验什么。
+
+**回归**：`test/guard-context.test.js` 新增两条——无 agents 服务时空闲可接续的
+同树子代理仍算本机成员；global guard 未生效时仍不授予下游独立批准。
+
+
 ## DEC-069 `route` 只对工具结果之后的机械步骤判断（2026-11-15）
 
 **背景**：第二轮代码审计指出 `route` 的「机械闸」`hasFreshUserInput(session) &&

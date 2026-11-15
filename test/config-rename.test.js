@@ -66,7 +66,13 @@ test("旧名 startlux.yml 会被改名迁移为 config.yml，内容原样保留"
     // 同目录改名用 rename，旧文件不应残留两份配置。
     assert.equal(existsSync(legacy), false, "同目录改名后旧文件应已消失，避免两份配置并存");
     // 含明文 key 的文件权限保持 600。
-    assert.equal(statSync(next).mode & 0o777, 0o600);
+    //
+    // Windows 不实现 POSIX 权限位：`stat` 的 mode 恒为 0o666，`chmod` 只会
+    // 切换只读位。在这里断言 0o600 是断言一个平台不存在的语义，只会让本机
+    // 全量测试长期带一条红；发布 CI 跑 Linux，那条断言在那里照常生效。
+    if (process.platform !== "win32") {
+      assert.equal(statSync(next).mode & 0o777, 0o600);
+    }
   } finally {
     process.env.DSH_HOME = prev ?? "";
     if (prev === undefined) delete process.env.DSH_HOME;

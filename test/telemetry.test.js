@@ -413,7 +413,11 @@ test("自定义端点生效；状态文件是合法 JSON 且权限收敛", async
     assert.doesNotThrow(() => JSON.parse(text), "状态文件必须是合法 JSON");
     const { stat } = await import("node:fs/promises");
     const info = await stat(join(dir, STATE_FILE));
-    assert.equal(info.mode & 0o077, 0, "状态文件不应给组/其他人读权限");
+    // Windows 不实现 POSIX 权限位（mode 恒为 0o666、chmod 只切只读位），
+    // 这条断言在那里没有可判定的语义；发布 CI 跑 Linux，仍会严格检查。
+    if (process.platform !== "win32") {
+      assert.equal(info.mode & 0o077, 0, "状态文件不应给组/其他人读权限");
+    }
   });
 });
 

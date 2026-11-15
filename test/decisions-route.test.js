@@ -610,7 +610,10 @@ test("sessionMetaOf：标题优先，其次 header.title，再退 cwd 目录名"
 
   const noTitle = createSessionMetaResolver();
   assert.equal(
-    noTitle({ id: "s-2", header: { cwd: "C:\\work\\repo" } }).sessionName,
+    // 用当前平台的路径形态：`basename()` 是平台相关的，在 Linux CI 上给它
+    // 一个纯反斜杠的 Windows 路径会原样返回（不会取到 repo）。这条断言验的
+    // 是「退化到 cwd 目录名」，不是「跨平台解析任意路径」。
+    noTitle({ id: "s-2", header: { cwd: join("work", "repo") } }).sessionName,
     "repo",
     "没有标题时用 cwd 的目录名",
   );

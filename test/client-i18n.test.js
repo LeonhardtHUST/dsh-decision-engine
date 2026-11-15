@@ -283,6 +283,25 @@ test("英文：界面上确实出现了英文关键词（不是整页空白或�
   assert.ok(text.includes("Enable guard"), `应出现 Enable guard，实际：\n${text.slice(0, 1200)}`);
 });
 
+test("英文：T2/T3 新增的设置项也有英文（决策模型思考 / 日志分文件 / 日志保留）", async () => {
+  // 这三行是 T2/T3 新加的：漏登记的表现是英文宿主上它们整块保持中文，
+  // 而上面的「零中文」扫描会先报出来——这条补的是「报得准」：明确指出
+  // 是哪一行的词表漏了，而不是让下一个人从一堆行里找。
+  const { text } = await renderLang({ lang: "en", slots: { [SLOTS.status]: stateWith(), [SLOTS.decisions]: decisionsFixture } });
+  assert.ok(text.includes("Decision-model thinking"), `应出现 Decision-model thinking，实际：\n${text.slice(0, 1500)}`);
+  assert.ok(text.includes("Log sharding"), `应出现 Log sharding，实际：\n${text.slice(0, 1500)}`);
+  assert.ok(text.includes("Log retention"), `应出现 Log retention，实际：\n${text.slice(0, 1500)}`);
+  // think_mode 能力位（providers.js 下发的 supported / unknown / unsupported）
+  // 的说明文案也得英文。默认 provider 的取值由预设表决定，所以这里只断言
+  // 「三套里出现了一套英文」，不写死是哪一套。
+  assert.ok(
+    text.includes("Controls only the think_mode this plugin sends")
+      || text.includes("has not been measured for think_mode support")
+      || text.includes("has no think_mode protocol"),
+    `应出现 think_mode 能力位的英文说明，实际：\n${text.slice(0, 1500)}`,
+  );
+});
+
 test("中文：宿主语言为 zh 时保持原样中文界面", async () => {
   const { text } = await renderLang({ lang: "zh", slots: { [SLOTS.status]: stateWith(), [SLOTS.decisions]: decisionsFixture } });
   assert.ok(text.includes("服务提供方"), `中文界面应显示「服务提供方」，实际：\n${text.slice(0, 1200)}`);

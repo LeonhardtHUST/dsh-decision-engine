@@ -230,13 +230,14 @@ test("本地规则记录明确未调用模型，不再伪装成unknown提供方�
   const record = entry({ provider: "unknown", model: "", latencyMs: 0, scores: { decisionSource: "local_policy", modelEvaluation: { status: "not_requested" } } });
   const ui = await renderDecisions({ page: { entries: [record] } });
   const cells = ui.cellsOf(record.id);
-  assert.deepEqual(cells.slice(2, 6), ["本地权限规则", "未调用模型", "本地检查通过", "未调用"]);
+  // 裁决格写「放行」（T4）：这次调用确实过去了，拦它的是本地规则。
+  assert.deepEqual(cells.slice(2, 6), ["本地权限规则", "未调用模型", "放行", "未调用"]);
 });
 
 test("本地规则与未调用模型提示在英文界面也有明确含义", async () => {
   const record = entry({ provider: "unknown", model: "", latencyMs: 0, scores: { modelEvaluation: { status: "not_requested" } } });
   const ui = await renderDecisions({ lang: "en", page: { entries: [record] } });
-  assert.deepEqual(ui.cellsOf(record.id).slice(2, 6), ["Local permission rules", "Model not called", "Local checks passed", "Not called"]);
+  assert.deepEqual(ui.cellsOf(record.id).slice(2, 6), ["Local permission rules", "Model not called", "Allow", "Not called"]);
 });
 
 test("回退模型身份优先于缺失或旧primary身份展示", async () => {
@@ -782,7 +783,9 @@ test("列出本会话的决策：时间、决策点、提供方、模型、裁�
   assert.match(text, /工具授权/, "应显示决策点的中文名");
   assert.match(text, /bamboonode/, "应显示提供方");
   assert.match(text, /startlux-decision-v1.1-27b-autothink/, "应显示模型");
-  assert.match(text, /交给主模型/, "应显示裁决（中文名）");
+  // T4 之后 delegate（工具授权点的「交给主模型」）这一格写「放行」：用户
+  // 要一眼看出的是「这次过去了」，而不是「谁判的」。
+  assert.match(text, /放行/, "应显示裁决（中文名）");
   assert.match(text, /1689ms/, "应显示耗时");
   assert.match(text, /2026-11-03 16:30:00/, "应显示时间");
 });
@@ -1447,135 +1450,248 @@ test("降级「标记」列写出失败原因与状态码", async () => {
   assert.equal(view.cellsOf("rec-plain")[COL.flags], "已降级", "无 detail 时只写已降级");
 });
 
-// ------------------------------------------------------------------ 裁决词的中文显示
+// ------------------------------------------------------------------ 裁决格（T4）
 //
-// 裁决词是**机器词**：明细文件、遥测、`detail` 原因串里写的都是
-// `delegate` / `inline` 这种英文。可这一列是整张表唯一还在说英文的地方，
-// 中文界面读这张表时最想看的就是它。用户要求（2026-11-05）：
-// 「裁决里的英文需要对应的中文翻译：inline, delegate 等」。
+// 口径（T4 重写）：这一格回答的是**用户关心的两件事**——
+//   1. 这次到底过没过？→ 颜色（allow 绿 / ask 橙 / reject 红 / none 主文本灰）
+//   2. 它对我这一步做了什么？→ 文字（放行 / 换模型 / 拦截 / 转人工…）
 //
-// 口径：**只换显示，不换数据**。`VERDICT_LABELS` 给中文名，
-// `EN_LABELS` 把中文名翻回**机器词本身**，所以英文界面与改前逐字一致。
+// 三条与旧实现的关键差别：
+//   - 词表**独立**于全局 `tr` 词典（`VERDICT_TEXT_ZH` / `VERDICT_TEXT_EN`）：
+//     这些词面与统计页重名却表达不同东西，混进一张表必然互相覆盖；
+//   - 颜色按**结果**而不是逐词（16 色时扫一眼读不出哪几次被拦了）；
+//   - `skip` 按决策点分义：retrieval → 拦截、cotTranslate → 不翻译、其余 → 跳过。
+//
+// 每一条都断言「文字 + 颜色」两件事：只断言文字会漏掉「全列一个颜色」的回归，
+// 只断言颜色会漏掉「词写错」。
 
-/** 全部 16 个裁决词 → 中文名（与 lib/client.js 的 VERDICT_LABELS 同源口径）。 */
-const VERDICT_ZH = {
-  allow: "照常放行",
-  keep: "保留原模型",
-  delegate: "交给主模型",
-  switch: "换模型",
-  redirect: "改用别的技能",
-  advise: "建议分派",
-  prune: "裁剪结果",
-  summarize: "摘要压缩",
-  continue: "续一轮",
-  translate: "翻译",
-  stop: "收束本轮",
-  inline: "自己接着做",
-  skip: "跳过",
-  ask: "转人工确认",
-  deny: "拒绝执行",
-  degraded: "降级未裁决",
+/**
+ * （决策点, 裁决词）→ 期望的中文标签与结果色。
+ *
+ * 与 lib/client.js 的 `VERDICT_TEXT_ZH` / `VERDICT_OUTCOME_COLORS` 同源口径；
+ * 覆盖全部 16 个裁决词，另加 `skip` 的两个按点分义分支与 degraded。
+ */
+const VERDICT_CASES = [
+  // —— 放行族 ——
+  { point: "authorize", action: "delegate", zh: "放行", outcome: "allow" },
+  { point: "authorize", action: "allow", zh: "放行", outcome: "allow" },
+  { point: "authorize", action: "defer", zh: "等你定", outcome: "allow" },
+  // —— 改写行为族 ——
+  { point: "route", action: "keep", zh: "不换模型", outcome: "allow" },
+  { point: "route", action: "switch", zh: "换模型", outcome: "allow" },
+  { point: "skillPick", action: "redirect", zh: "换技能", outcome: "reject" },
+  { point: "delegate", action: "advise", zh: "建议分派", outcome: "allow" },
+  { point: "compact", action: "prune", zh: "裁剪", outcome: "allow" },
+  { point: "compact", action: "summarize", zh: "摘要", outcome: "allow" },
+  { point: "turnStop", action: "continue", zh: "续轮", outcome: "allow" },
+  { point: "cotTranslate", action: "translate", zh: "翻译", outcome: "allow" },
+  { point: "turnStop", action: "stop", zh: "结束", outcome: "allow" },
+  { point: "delegate", action: "inline", zh: "自己做", outcome: "allow" },
+  // —— skip：同一个词在三个点上后果不同 ——
+  { point: "retrieval", action: "skip", zh: "拦截", outcome: "reject" },
+  { point: "cotTranslate", action: "skip", zh: "不翻译", outcome: "allow" },
+  { point: "turnStop", action: "skip", zh: "跳过", outcome: "allow" },
+  // —— 要人看一眼 ——
+  { point: "authorize", action: "ask", zh: "转人工", outcome: "ask" },
+  { point: "authorize", action: "deny", zh: "拦截", outcome: "reject" },
+  // —— 没有裁决 ——
+  { point: "authorize", action: "degraded", zh: "未裁决", outcome: "none" },
+];
+
+/** 结果 → 颜色（与 `VERDICT_OUTCOME_COLORS` 同源）。 */
+const OUTCOME_COLORS = {
+  allow: "#22c55e",
+  ask: "#f59e0b",
+  reject: "#ef4444",
+  none: "var(--dsw-alias-label-primary, #111111)",
 };
 
-/** 每个裁决词一条记录，用来逐列取「裁决」格。 */
+/** 英文词表（与 `VERDICT_TEXT_EN` 同源）。 */
+const VERDICT_EN = {
+  pass: "Allow",
+  ask: "Needs approval",
+  deny: "Blocked",
+  none: "Undecided",
+  keep: "Keep model",
+  switch: "Switch model",
+  redirect: "Switch skill",
+  advise: "Suggest split",
+  prune: "Prune",
+  summarize: "Summarize",
+  continue: "Continue",
+  translate: "Translate",
+  stop: "End turn",
+  inline: "Do it inline",
+  skip: "Skip",
+  notranslate: "No translation",
+  defer: "Awaiting you",
+};
+
+/** 每个用例一条记录；id 里带点与词，便于按 id 取行。 */
+const idOfCase = (item) => `rec-verdict-${item.point}-${item.action}`;
+
 const ALL_VERDICTS = {
-  entries: Object.keys(VERDICT_ZH).map((action, index) =>
+  entries: VERDICT_CASES.map((item, index) =>
     entry({
       seq: index + 1,
-      id: `rec-verdict-${action}`,
+      id: idOfCase(item),
       ts: `2026-11-05T08:${String(index).padStart(2, "0")}:00.000Z`,
-      action,
+      point: item.point,
+      action: item.action,
     }),
   ),
-  total: Object.keys(VERDICT_ZH).length,
+  total: VERDICT_CASES.length,
 };
 
 /**
- * 把「裁决」列的显示值**按记录 id 归档**（`{ id → 该格文本 }`）。
+ * 把「裁决」格的**文字 + title + 颜色**按记录 id 归档。
  *
- * 存在的理由：这一组用例要测的是「哪个词显示成什么」，与行排在第几无关。
- * 默认降序（DEC-044）之后，夹具的写入顺序与屏幕顺序正好相反，按下标比
- * 一份顺序数组会把「翻译对不对」和「排序对不对」两件事捆在一起失败——
- * 按 id 取就只可能因前者变红。
+ * 只取文字测不出「颜色按结果」这条——那正是 T4 改的核心；只取颜色测不出
+ * 「词写对没写对」。两个都取，且按 id 定位（行序由排序决定，与用例无关）。
  */
-function actionById(view) {
+function verdictCells(view) {
+  const rows = findNodes(view.tree, "tr").filter((tr) => typeof tr.props?.onClick === "function");
   const ids = view.rowIds();
-  const cells = view.rowCells();
   const out = {};
-  ids.forEach((id, index) => {
-    out[id] = cells[index][COL.action];
+  rows.forEach((tr, index) => {
+    const core = (tr.children ?? []).filter((td) => td && typeof td === "object" && td.type === "td");
+    const cell = core[COL.action];
+    const span = findNodes(cell, "span")[0];
+    out[ids[index]] = {
+      text: collectText(cell).join(""),
+      title: span?.props?.title,
+      color: span?.props?.style?.color,
+    };
   });
   return out;
 }
 
-test("裁决列写中文名：16 个裁决词全覆盖", async () => {
+test("裁决格：按（决策点, 裁决词）写短词，且颜色按结果而不是逐词", async () => {
   const view = await renderDecisions({ page: ALL_VERDICTS });
-  const shown = actionById(view);
-  assert.equal(Object.keys(shown).length, Object.keys(VERDICT_ZH).length, "每个裁决词都该有一行");
-  const wrong = Object.entries(VERDICT_ZH)
-    .filter(([action, label]) => shown[`rec-verdict-${action}`] !== label)
-    .map(([action, label]) => `${action}：期望「${label}」，实际「${shown[`rec-verdict-${action}`]}」`);
-  assert.deepEqual(wrong, [], `裁决列没有按词显示中文名：\n${wrong.join("\n")}`);
-  // 机器词不该再出现在中文界面的这一列里。
-  const values = Object.values(shown);
-  const leaked = Object.keys(VERDICT_ZH).filter((action) => values.includes(action));
+  const shown = verdictCells(view);
+  const wrong = [];
+  for (const item of VERDICT_CASES) {
+    const id = idOfCase(item);
+    const cell = shown[id];
+    if (cell === undefined) {
+      wrong.push(`${id}：页面上没有这一行`);
+      continue;
+    }
+    if (cell.text !== item.zh) wrong.push(`${id}：期望「${item.zh}」，实际「${cell.text}」`);
+    const expectedColor = OUTCOME_COLORS[item.outcome];
+    if (cell.color !== expectedColor) {
+      wrong.push(`${id}：颜色应为 ${item.outcome}(${expectedColor})，实际 ${cell.color}`);
+    }
+  }
+  assert.deepEqual(wrong, [], `裁决格不符（文字/颜色）：\n${wrong.join("\n")}`);
+
+  // 机器词不该再出现在中文界面的这一列里（degraded 也写「未裁决」）。
+  const values = Object.values(shown).map((cell) => cell.text);
+  const leaked = VERDICT_CASES.map((item) => item.action)
+    .filter((action) => action !== "allow" && action !== "ask" && action !== "deny")
+    .filter((action) => values.includes(action));
   assert.deepEqual(leaked, [], `这些裁决词还是英文：${leaked.join(", ")}`);
 });
 
-test("原始机器词留在裁决格的 title 上（对照明细文件与日志用）", async () => {
+test("裁决格的 title 留原始机器词（对照明细文件与日志用）", async () => {
   const view = await renderDecisions({ page: { entries: [entry({ seq: 1, action: "inline" })], total: 1 } });
   const tags = findNodes(view.tree, "span");
   const titles = tags.map((node) => node.props?.title).filter((value) => typeof value === "string");
   assert.ok(titles.includes("inline"), `title 应带原始机器词，实际：${titles.join(" | ")}`);
 });
 
-test("英文界面：裁决列翻回机器词，且不残留中文", async () => {
+test("英文界面：裁决格走独立英文词表，且不残留中文", async () => {
   const view = await renderDecisions({ page: ALL_VERDICTS, lang: "en" });
-  const shown = actionById(view);
-  // 同样**按 id 比**：这条测的是「英文名 = 机器词本身」（改中文名时不许动到
-  // 英文界面），行序由默认降序决定，与它无关。
-  const wrong = Object.keys(VERDICT_ZH)
-    .filter((action) => shown[`rec-verdict-${action}`] !== action)
-    .map((action) => `${action}：期望「${action}」，实际「${shown[`rec-verdict-${action}`]}」`);
-  assert.deepEqual(wrong, [], `英文界面的裁决列没翻回机器词：\n${wrong.join("\n")}`);
+  const shown = verdictCells(view);
+  const wrong = [];
+  for (const item of VERDICT_CASES) {
+    const id = idOfCase(item);
+    // 中文词 → 英文词：按 词表条目 查，避免把「同一中文两个来源」混起来。
+    const expected = {
+      放行: VERDICT_EN.pass,
+      等你定: VERDICT_EN.defer,
+      不换模型: VERDICT_EN.keep,
+      换模型: VERDICT_EN.switch,
+      换技能: VERDICT_EN.redirect,
+      建议分派: VERDICT_EN.advise,
+      裁剪: VERDICT_EN.prune,
+      摘要: VERDICT_EN.summarize,
+      续轮: VERDICT_EN.continue,
+      翻译: VERDICT_EN.translate,
+      结束: VERDICT_EN.stop,
+      自己做: VERDICT_EN.inline,
+      跳过: VERDICT_EN.skip,
+      不翻译: VERDICT_EN.notranslate,
+      转人工: VERDICT_EN.ask,
+      拦截: VERDICT_EN.deny,
+      未裁决: VERDICT_EN.none,
+    }[item.zh];
+    if (shown[id]?.text !== expected) wrong.push(`${id}：期望「${expected}」，实际「${shown[id]?.text}」`);
+  }
+  assert.deepEqual(wrong, [], `英文界面的裁决格没走独立英文词表：\n${wrong.join("\n")}`);
   const leftover = view.text.split("\n").filter((line) => CJK.test(line.trim()));
   assert.deepEqual(leftover, [], `英文界面残留中文：\n${leftover.join("\n")}`);
 });
 
 test("未登记的裁决词退回原词，不显示空格或 undefined", async () => {
-  // 新裁决词在 `lib/outcomes.js` 登记了、却忘了补中文名时，界面必须还能读。
+  // 新裁决词在 `lib/outcomes.js` 登记了、却忘了补词表时，界面必须还能读。
   const view = await renderDecisions({ page: { entries: [entry({ seq: 1, action: "brand-new-word" })], total: 1 } });
   assert.equal(view.rowCells()[0][COL.action], "brand-new-word", "未登记的词应原样显示");
 });
 
-test("裁决列按中文名排序，不按机器词的字母序", async () => {
-  // keep / advise / allow 三个词：机器词字母序是 advise < allow < keep，
-  // 中文名序是 保留原模型 < 建议分派 < 照常放行，时间序又是第三种排列
-  // （夹具把 ts 排成 keep → allow → advise）——三条顺序互不相同，
-  // 排错任何一条都会显形。
+test("缺 action 的记录写「未裁决」，不是空白格", async () => {
+  // 老记录可能是回填的、没有 action。旧实现渲染空串，于是「没裁决」与
+  // 「这一列坏了」在屏幕上长得一样。
+  const view = await renderDecisions({ page: { entries: [entry({ seq: 1, action: undefined })], total: 1 } });
+  assert.equal(view.rowCells()[0][COL.action], "未裁决");
+});
+
+test("裁决列按固定 rank 排序：放行 → 转人工 → 拦截 → 未裁决", async () => {
+  // 三条互不相同的「顺序」：时间序（夹具按 放行→转人工→拦截→未裁决 写）、
+  // 机器词字母序（allow < ask < deny < degraded）、结果 rank（allow0 ask1
+  // reject2 none3）。排错任何一条都会显形。
   const fixture = {
     entries: [
-      entry({ seq: 1, id: "rec-advise", ts: "2026-11-05T08:02:00.000Z", action: "advise" }),
-      entry({ seq: 2, id: "rec-allow", ts: "2026-11-05T08:01:00.000Z", action: "allow" }),
-      entry({ seq: 3, id: "rec-keep", ts: "2026-11-05T08:00:00.000Z", action: "keep" }),
+      entry({ seq: 1, id: "rec-allow", ts: "2026-11-05T08:00:00.000Z", action: "allow" }),
+      entry({ seq: 2, id: "rec-ask", ts: "2026-11-05T08:01:00.000Z", action: "ask" }),
+      entry({ seq: 3, id: "rec-deny", ts: "2026-11-05T08:02:00.000Z", action: "deny" }),
+      entry({ seq: 4, id: "rec-degraded", ts: "2026-11-05T08:03:00.000Z", action: "degraded" }),
     ],
-    total: 3,
+    total: 4,
   };
   const view = await renderDecisions({ page: fixture });
   // 非时间列首点从降序起（DEC-028 的口径），再点才翻回升序。
   await view.clickTh(COL.action);
-  const desc = view.rowCells().map((row) => row[COL.action]);
   assert.deepEqual(
-    desc,
-    ["照常放行", "建议分派", "保留原模型"],
-    `首点应是中文名降序，实际：${desc.join(" | ")}`,
+    view.rowCells().map((row) => row[COL.action]),
+    ["未裁决", "拦截", "转人工", "放行"],
+    "首点应是 rank 降序：未裁决 → 拦截 → 转人工 → 放行",
   );
   await view.clickTh(COL.action);
-  const asc = view.rowCells().map((row) => row[COL.action]);
   assert.deepEqual(
-    asc,
-    ["保留原模型", "建议分派", "照常放行"],
-    `再点应翻回升序，实际：${asc.join(" | ")}`,
+    view.rowCells().map((row) => row[COL.action]),
+    ["放行", "转人工", "拦截", "未裁决"],
+    "再点应是 rank 升序：放行 → 转人工 → 拦截 → 未裁决",
+  );
+});
+
+test("同 rank 内按决策点聚在一起，再按时间", async () => {
+  // 两条 reject：时间上 retrieval 更晚，但「按点」的次序是 工具授权 → 检索必要性。
+  // 若还按显示名 localeCompare 排，这两行会跟着中文词序乱跳；若只看时间，
+  // 检索那条会跑到前面——两种旧实现都过不了这条。
+  const fixture = {
+    entries: [
+      entry({ seq: 1, id: "rec-retrieval-deny", ts: "2026-11-05T08:09:00.000Z", point: "retrieval", action: "skip" }),
+      entry({ seq: 2, id: "rec-authorize-deny", ts: "2026-11-05T08:01:00.000Z", point: "authorize", action: "deny" }),
+    ],
+    total: 2,
+  };
+  const view = await renderDecisions({ page: fixture });
+  await view.clickTh(COL.action);
+  assert.deepEqual(
+    view.rowIds(),
+    ["rec-authorize-deny", "rec-retrieval-deny"],
+    "同为拦截时按决策点（工具授权 → 检索必要性）聚在一起，不看时间先后",
   );
 });
 
@@ -1863,11 +1979,14 @@ function tolerancePage(over = {}) {
   return {
     level: "default",
     levels: ["autonomous", "relaxed", "default", "cautious"],
+    // T1 之后 label / summary 由服务端下发：不问 / 少问 / 默认 / 多问。
+    // 夹具照抄 lib/tolerance.js 的现文案——只给 id 的话测试会绿，真机上
+    // 就是四个英文内部名（这正是当年「滑块显示 autonomous」那个 bug）。
     presets: [
-      { id: "autonomous", label: "自治", labelEn: "Autonomous", summary: "自治：从不询问用户，只有高风险调用会被直接拦下", summaryEn: "x", percentile: null },
-      { id: "relaxed", label: "轻松", labelEn: "Relaxed", summary: "轻松：只有严重度排在最前的 1% 才询问用户", summaryEn: "x", percentile: 0.99 },
-      { id: "default", label: "默认", labelEn: "Default", summary: "默认：按决策模型自己的判断提问（当前的默认行为）", summaryEn: "x", percentile: null },
-      { id: "cautious", label: "谨慎", labelEn: "Cautious", summary: "谨慎：在默认判断之外，再把严重度靠前的 25% 也拿来询问", summaryEn: "x", percentile: 0.75 },
+      { id: "autonomous", label: "不问", labelEn: "Don't ask", summary: "软性审查不弹窗、不按比例；权限强制的人工批准与拒绝照旧", summaryEn: "Soft checks never prompt and no percentile band applies; permission-mandated approval and denial are unchanged", percentile: null },
+      { id: "relaxed", label: "少问", labelEn: "Ask less", summary: "只按严重度尾部：校准后约最前 1%，校准前固定分 0.60；替换默认判断，因此可能多问也可能少问", summaryEn: "Severity tail only: about the top 1% once calibrated, a fixed score 0.60 before that; replaces the default judgement, so it can ask more or less often", percentile: 0.99 },
+      { id: "default", label: "默认", labelEn: "Default", summary: "沿用决策模型判断：中/高风险、疑似注入、不可逆且与任务无关会问", summaryEn: "Keeps the decision model's own judgement: asks on medium/high risk, suspected injection, or irreversible and off-task calls", percentile: null },
+      { id: "cautious", label: "多问", labelEn: "Ask more", summary: "默认判断之上再加严重度靠前一批：校准后约 25%，校准前固定分 0.30", summaryEn: "Adds the top severity band on top of the default judgement: about 25% once calibrated, a fixed score 0.30 before that", percentile: 0.75 },
     ],
     calibration: {
       provider: "bamboonode",
@@ -1887,15 +2006,22 @@ test("决策历史页渲染四段滑块（车厢里就能调，不用跳去配�
   const { text } = await renderDecisions({
     page: { entries: threeRows().entries, tolerance: tolerancePage() },
   });
-  assert.ok(text.includes("人工审核比例"), `决策历史页缺少滑块：\n${text.slice(0, 900)}`);
-  for (const name of ["自治", "轻松", "默认", "谨慎"]) {
+  assert.ok(text.includes("安全档位"), `决策历史页缺少滑块：\n${text.slice(0, 900)}`);
+  for (const name of ["不问", "少问", "默认", "多问"]) {
     assert.ok(text.includes(name), `缺少「${name}」段`);
   }
-  // 不是下拉，且当前档位的比例说明必须在（它取代了挤在落点上的尾注）。
+  // 不是下拉，且当前档位的**语义说明**必须在（T1：只说这一档做什么，
+  // 不再换算成「只问最前 N% 的调用」——那对冷启动与按点分义都对不上）。
   assert.ok(
-    text.includes("默认：按决策模型自己的判断"),
+    text.includes("沿用决策模型判断：中/高风险"),
     `应说明当前档位的语义，实际：\n${text.slice(0, 900)}`,
   );
+  // 新的总则：权限强制的人工批准与拒绝不受档位影响。
+  assert.ok(
+    text.includes("权限强制的人工批准与拒绝不受档位影响"),
+    `应写明档位不改变强制审批，实际：\n${text.slice(0, 900)}`,
+  );
+  assert.equal(text.includes("只问最前"), false, "不该再出现「只问最前 N%」那种换算");
 });
 
 test("空态（本会话没有记录）仍然有滑块可调", async () => {
@@ -1904,7 +2030,7 @@ test("空态（本会话没有记录）仍然有滑块可调", async () => {
     page: { entries: [], tolerance: tolerancePage() },
   });
   assert.ok(text.includes("本会话还没有决策记录"), "应显示空态文案");
-  assert.ok(text.includes("人工审核比例"), "空态也必须能让用户改档位");
+  assert.ok(text.includes("安全档位"), "空态也必须能让用户改档位");
 });
 
 test("错误态：读取失败时如实报错，且不画一个没有数据支撑的滑块", async () => {
@@ -1919,21 +2045,22 @@ test("错误态：读取失败时如实报错，且不画一个没有数据支�
     page: { entries: [], tolerance: tolerancePage() },
   });
   assert.ok(text.includes("读取决策历史失败"), `应显示失败原因，实际：\n${text.slice(0, 900)}`);
-  assert.ok(!text.includes("人工审核比例"), "没有数据时不该画滑块（否则显示的可能不是真实生效值）");
+  assert.ok(!text.includes("安全档位"), "没有数据时不该画滑块（否则显示的可能不是真实生效值）");
 });
 
 test("服务端不下发 tolerance 时，决策历史页照常渲染（回归守卫）", async () => {
   const { text } = await renderDecisions({
     page: { entries: threeRows().entries },
   });
-  assert.ok(!text.includes("人工审核比例"), "没有下发数据时不该画滑块");
+  assert.ok(!text.includes("安全档位"), "没有下发数据时不该画滑块");
   // 但表格本身必须还在——证明是「少一块」，不是「整页挂了」。
   assert.ok(text.includes("裁决") || text.includes("时间"), `表格应正常，实际：\n${text.slice(0, 900)}`);
 });
 
 test("英文界面下这个滑块不残留中文（服务端中文标签有词表兜着）", async () => {
-  // 四档的 label / summary 来自服务端（中文），界面在渲染边界翻译。
-  // 这条防的是「新增控件时忘了登记英文」——英文宿主上冒出四块中文。
+  // 四档的 label / summary 来自服务端（中文），英文优先取服务端带来的
+  // `labelEn` / `summaryEn`，缺席时回落到词表。这条防的是「新增控件时忘了
+  // 登记英文」——英文宿主上冒出四块中文。
   const CJK = /[一-鿿　-〿＀-￯]/;
   const { text } = await renderDecisions({
     lang: "en",
@@ -1953,8 +2080,8 @@ test("英文界面下这个滑块不残留中文（服务端中文标签有词�
     // detail 是**数据**（审计原文），英文界面下保持不变是正确行为。
     .filter((line) => !line.includes("benign call allowed"));
   assert.deepEqual(offenders, [], `英文界面里出现了中文：\n${offenders.join("\n")}`);
-  assert.match(text, /Review tolerance/, "滑块标题应显示英文");
-  assert.match(text, /Autonomous|Relaxed|Cautious/, "四个段应显示英文");
+  assert.match(text, /Safety level/, "滑块标题应显示英文");
+  assert.match(text, /Don't ask|Ask less|Ask more/, "四个段应显示英文");
 });
 
 // ------------------------------------------------------------------ 排版（字体与字号）
@@ -2119,6 +2246,40 @@ test("截断提示与记录文件路径的字号不低于 12px", async () => {
   const fileNote = findInnermostDiv(tree, (text) => text.includes("/tmp/decisions.jsonl"));
   assert.ok(fileNote, "应显示记录文件路径");
   assert.ok(fontSizeOf(fileNote) >= 12, `路径字号应不低于 12px，实际：${inlineStyle(fileNote).fontSize}`);
+});
+
+test("分文件之后：多分片只报数量与目录，单分片仍显示完整路径（T3）", async () => {
+  // 按日期分文件时一个会话能跨好几天/十几个分片。逐个列路径会把这条附注
+  // 撑成一整段路径墙，而用户真正要知道的是「在哪个目录、有几个文件」。
+  const many = await renderDecisions({
+    page: {
+      entries: [entry()],
+      total: 1,
+      files: ["/home/u/.dsh/dsh-decision-engine/logs/2026-11-14.log", "/home/u/.dsh/dsh-decision-engine/logs/2026-11-15.log"],
+    },
+    slots: { [SLOTS.loading]: false },
+  });
+  assert.ok(
+    many.text.includes("记录文件：2 个文件，目录 /home/u/.dsh/dsh-decision-engine/logs"),
+    `多分片应报数量与目录，实际：\n${many.text.slice(0, 900)}`,
+  );
+
+  // 单分片：完整路径仍然是最有用的信息（「我要去翻这条记录」）。
+  const one = await renderDecisions({
+    page: { entries: [entry()], total: 1, files: ["/tmp/logs/2026-11-15.log"] },
+    slots: { [SLOTS.loading]: false },
+  });
+  assert.ok(
+    one.text.includes("记录文件：/tmp/logs/2026-11-15.log"),
+    `单分片应显示完整路径，实际：\n${one.text.slice(0, 900)}`,
+  );
+
+  // 老服务端只有单个 `file` 字段：必须继续工作（兼容）。
+  const legacy = await renderDecisions({
+    page: { entries: [entry()], total: 1, file: "/tmp/decisions.jsonl" },
+    slots: { [SLOTS.loading]: false },
+  });
+  assert.ok(legacy.text.includes("记录文件：/tmp/decisions.jsonl"), "老服务端的单 file 字段仍要显示");
 });
 
 test("决策历史树里没有任何用户可读文本退化成等宽字体", async () => {

@@ -75,7 +75,7 @@ const SLOTS = {
  * pointLabels 为空，界面会退回显示裸 id（authorize / retrieval）。
  */
 /**
- * 人工审核比例的下发载荷（DEC-035）。
+ * 安全档位的下发载荷（DEC-035 / T1）。
  *
  * 形状照抄 `lib/index.js` 的 `tolerancePayload()`：四档元数据由**服务端**下发，
  * 前端不抄一份，所以夹具也必须给全 label / summary / percentile——只给 id
@@ -84,11 +84,14 @@ const SLOTS = {
 const toleranceFixture = (over = {}) => ({
   level: "default",
   levels: ["autonomous", "relaxed", "default", "cautious"],
+  // T1 之后 label / summary 是服务端下发的**新口径**（不问 / 少问 / 默认 / 多问）。
+  // 夹具照抄 lib/tolerance.js 的现文案：只给 id 的话界面会显示四个英文内部名，
+  // 而只抄旧文案的话「四个段落点是否按服务端标签渲染」就测不出来。
   presets: [
-    { id: "autonomous", label: "自治", labelEn: "Autonomous", summary: "自治：从不询问用户，只有高风险调用会被直接拦下", summaryEn: "x", percentile: null },
-    { id: "relaxed", label: "轻松", labelEn: "Relaxed", summary: "轻松：只有严重度排在最前的 1% 才询问用户", summaryEn: "x", percentile: 0.99 },
-    { id: "default", label: "默认", labelEn: "Default", summary: "默认：按决策模型自己的判断提问（当前的默认行为）", summaryEn: "x", percentile: null },
-    { id: "cautious", label: "谨慎", labelEn: "Cautious", summary: "谨慎：在默认判断之外，再把严重度靠前的 25% 也拿来询问", summaryEn: "x", percentile: 0.75 },
+    { id: "autonomous", label: "不问", labelEn: "Don't ask", summary: "软性审查不弹窗、不按比例；权限强制的人工批准与拒绝照旧", summaryEn: "Soft checks never prompt and no percentile band applies; permission-mandated approval and denial are unchanged", percentile: null },
+    { id: "relaxed", label: "少问", labelEn: "Ask less", summary: "只按严重度尾部：校准后约最前 1%，校准前固定分 0.60；替换默认判断，因此可能多问也可能少问", summaryEn: "Severity tail only: about the top 1% once calibrated, a fixed score 0.60 before that; replaces the default judgement, so it can ask more or less often", percentile: 0.99 },
+    { id: "default", label: "默认", labelEn: "Default", summary: "沿用决策模型判断：中/高风险、疑似注入、不可逆且与任务无关会问", summaryEn: "Keeps the decision model's own judgement: asks on medium/high risk, suspected injection, or irreversible and off-task calls", percentile: null },
+    { id: "cautious", label: "多问", labelEn: "Ask more", summary: "默认判断之上再加严重度靠前一批：校准后约 25%，校准前固定分 0.30", summaryEn: "Adds the top severity band on top of the default judgement: about 25% once calibrated, a fixed score 0.30 before that", percentile: 0.75 },
   ],
   calibration: {
     provider: "bamboonode",
@@ -832,20 +835,22 @@ test("生效端点始终可见（避免界面显示与实际请求不一致）",
   );
   assert.ok(text.includes("https://gw.example.com/v1/systemone"), "没有显示生效端点");
 });
-test("思考模式下拉存在，回显当前值且提供全部三档", async () => {
+test("决策模型思考下拉存在，回显当前值且提供全部三档（T2）", async () => {
   const { controls, text } = await render(
     stateWith({ thinkMode: "auto", thinkModes: ["never", "auto", "always"] }),
   );
-  assert.ok(text.includes("思考模式"), "界面上没有「思考模式」这一项");
+  // T2 改名：旧名「思考模式」让人以为它调的是宿主主模型的推理强度。
+  assert.ok(text.includes("决策模型思考"), "界面上没有「决策模型思考」这一项");
+  assert.equal(text.includes("思考模式"), false, "不该再出现旧名「思考模式」");
   const select = controls.find((node) => node.type === "select" && node.props.value === "auto");
-  assert.ok(select !== undefined, "没有找到思考模式下拉（或当前值不是 auto）");
+  assert.ok(select !== undefined, "没有找到决策模型思考下拉（或当前值不是 auto）");
   const options = select.children
     .filter((child) => child !== null && typeof child === "object" && child.type === "option")
     .map((child) => child.props.value);
   assert.deepEqual(options, ["never", "auto", "always"], "三档必须齐全，否则用户无法切到 always");
 });
 
-test("思考模式选项由服务端下发，不在前端硬编码", async () => {
+test("决策模型思考选项由服务端下发，不在前端硬编码", async () => {
   // 服务端若只给两档（例如未来改动），前端应照办而不是自己补一个 always。
   const { controls } = await render(stateWith({ thinkMode: "never", thinkModes: ["never", "auto"] }));
   const select = controls.find((node) => node.type === "select" && node.props.value === "never");
@@ -856,9 +861,51 @@ test("思考模式选项由服务端下发，不在前端硬编码", async () =>
   assert.deepEqual(options, ["never", "auto"]);
 });
 
-test("选 always 时提示延迟代价", async () => {
+test("选 always 时提示延迟代价（约 +5s 且质量收益未实测）", async () => {
   const { text } = await render(stateWith({ thinkMode: "always" }));
-  assert.ok(text.includes("多等"), "选 always 时应提示额外的延迟代价");
+  // 旧文案承诺「判断更充分」——那是个没人验证过的收益。现在只写实测到的
+  // 代价（+5s）并明说收益未实测。
+  assert.ok(text.includes("约 +5s"), `选 always 时应提示额外延迟，实际：\n${text.slice(0, 900)}`);
+  assert.ok(text.includes("质量收益未实测"), "不应承诺未经实测的质量收益");
+});
+
+test("thinkModeSupport=unsupported 时禁用下拉并说明原因（T2）", async () => {
+  const catalog = providerCatalog().map((item) =>
+    item.id === "bamboonode" ? { ...item, thinkModeSupport: "unsupported" } : item,
+  );
+  const { controls, text } = await render(stateWith({ providerCatalog: catalog, thinkMode: "auto" }));
+  const select = controls.find((node) => node.type === "select" && node.props.value === "auto");
+  assert.ok(select !== undefined);
+  assert.equal(select.props.disabled, true, "端点没有 think_mode 协议时应禁用下拉");
+  assert.ok(
+    text.includes("该端点的公开 API 没有 think_mode 协议"),
+    `应说明为什么这项不生效，实际：\n${text.slice(0, 1200)}`,
+  );
+});
+
+test("thinkModeSupport=supported 时说明它只影响决策端点，不影响宿主主模型（T2）", async () => {
+  const catalog = providerCatalog().map((item) =>
+    item.id === "bamboonode" ? { ...item, thinkModeSupport: "supported" } : item,
+  );
+  const { controls, text } = await render(stateWith({ providerCatalog: catalog }));
+  const select = controls.find((node) => node.type === "select" && node.props.value === "never");
+  assert.ok(select !== undefined);
+  assert.equal(select.props.disabled, false, "支持 think_mode 的端点不该禁用");
+  assert.ok(
+    text.includes("不影响宿主主模型"),
+    `应说清它不影响主模型，实际：\n${text.slice(0, 1200)}`,
+  );
+});
+
+test("老服务端没下发 thinkModeSupport 时按 unknown 说明（不谎报支持）", async () => {
+  // 显式把这一格抹掉：providers.js 将来会下发它，而这条用例要测的是
+  // 「服务端某一版没给这个字段」时的退化行为，不能依赖预设表当前长什么样。
+  const catalog = providerCatalog().map(({ thinkModeSupport: _omit, ...rest }) => rest);
+  const { text } = await render(stateWith({ providerCatalog: catalog }));
+  assert.ok(
+    text.includes("该端点未实测是否支持 think_mode"),
+    `缺能力位时应说「未实测」，实际：\n${text.slice(0, 1200)}`,
+  );
 });
 
 test("状态未加载时思考模式下拉仍有兜底选项", async () => {
@@ -1340,7 +1387,7 @@ function outcomesWith(over = {}) {
   });
 }
 
-test("统计：裁决统计单列一节，显示 allow / ask / reject 三格", async () => {
+test("统计：裁决统计单列一节，显示 allow / ask / reject 三格（ask 统一叫「转人工」）", async () => {
   const { text } = await render(stateWith({}), {
     slots: { [SLOTS.tab]: "stats", [SLOTS.stats]: outcomesWith({}) },
   });
@@ -1349,10 +1396,12 @@ test("统计：裁决统计单列一节，显示 allow / ask / reject 三格", a
     `应有「裁决统计」一节，实际：\n${text.slice(0, 1600)}`,
   );
   assert.ok(text.includes("放行 allow"), "应有「放行」格");
-  assert.ok(text.includes("询问 ask"), "应有「询问」格");
+  // T4 统一口径：ask 这一格叫「转人工」，与裁决历史页的裁决格同一个词。
+  assert.ok(text.includes("转人工 ask"), "应有「转人工」格");
+  assert.equal(text.includes("询问 ask"), false, "不该再出现旧词「询问」");
   assert.ok(text.includes("拦截 reject"), "应有「拦截」格");
   assert.ok(text.includes("120"), "应显示放行次数");
-  assert.ok(text.includes("8"), "应显示询问次数");
+  assert.ok(text.includes("8"), "应显示转人工次数");
   assert.ok(text.includes("3"), "应显示拦截次数");
 });
 
@@ -1713,9 +1762,12 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   const EXPECTED = {
     connection: ["使用免费模型", "服务提供方", "模型", "API Key", "生效端点", "密钥保存位置"],
     // 「真正拦截」已并入「工具授权」三态；新增「自动审查回退」。
-    guard: ["启用守卫", "工具授权", "自动审查回退", "人工审核比例", "决策模型参与点"],
-    record: ["决策历史", "审批卡正文可读化"],
-    model: ["思考模式", "匿名统计"],
+    // T1：区块标题由「人工审核比例」改为「安全档位」。
+    guard: ["启用守卫", "工具授权", "自动审查回退", "安全档位", "决策模型参与点"],
+    // T3：在「决策历史」之后新增日志分文件 / 保留（默认 date 模式还有分隔符）。
+    record: ["决策历史", "日志分文件", "日期分隔符", "日志保留", "审批卡正文可读化"],
+    // T2：由「思考模式」改名为「决策模型思考」。
+    model: ["决策模型思考", "匿名统计"],
   };
 
   for (const [id, labels] of Object.entries(EXPECTED)) {
@@ -1732,9 +1784,10 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   // 「守卫行为」有自己的三态控件，重复列一次就是这次要删掉的冗余。
   const CROSS = [
     ["启用守卫", "connection"],
-    ["思考模式", "connection"],
+    ["决策模型思考", "connection"],
     ["使用免费模型", "guard"],
     ["决策历史", "model"],
+    ["日志分文件", "guard"],
   ];
   for (const [label, wrongId] of CROSS) {
     const bodyText = textsOf(bodyOf(byId.get(wrongId))).join("\n");
@@ -2102,7 +2155,222 @@ test("即使服务端误把明文 key 塞进响应，界面也不会显示它", 
 
 
 // ===========================================================================
-// 人工审核比例（DEC-035）：四段滑块
+// 日志分文件 / 保留（T3）
+// ===========================================================================
+//
+// 这一组防三件事：
+//   1. **控件没有唯一 key**：设置页的行靠 `key` 定位（React 复用 + 测试按 key
+//      数行），撞车会让某一行「拨了没反应」或测试数到两行；
+//   2. **hint 与实际模式不符**：用户按 hint 去找文件，结果路径不是那样；
+//   3. **选完不落盘 / 落盘后回弹**：draft 的三个字段必须同时出现在
+//      「服务端状态派生（三处）」与「PUT 提交列表」里，缺哪一处都是回弹。
+
+/** 按**所在行的标题**取那一行的控件（select / input）。与 toggleOfRow 同构。 */
+function controlOfRow(node, title) {
+  const row = findNode(node, (item) => {
+    const children = Array.isArray(item?.children) ? item.children : [];
+    const head = children[0];
+    const texts = head === undefined || head === null ? [] : collectText(head);
+    return texts.includes(title);
+  });
+  if (row === null) return undefined;
+  return findNode(row.children, (item) => item.type === "select" || item.type === "input");
+}
+
+/**
+ * 设置页所有 `row()` 行上的 key。
+ *
+ * 按 `S.rowLine` 的样式形状筛（两列 space-between），而不是「所有 key」：
+ * 分组标题按钮每块都有一个 `key: "hd"`，那是**故意**重复的。
+ */
+function rowKeys(tree) {
+  const keys = [];
+  (function walk(node) {
+    if (node === null || node === undefined || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child);
+      return;
+    }
+    const style = node.props?.style ?? {};
+    if (style.display === "flex" && style.justifyContent === "space-between" && style.padding === "12px 0") {
+      if (typeof node.props?.key === "string") keys.push(node.props.key);
+    }
+    for (const child of node.children ?? []) walk(child);
+  })(tree);
+  return keys;
+}
+
+test("日志三行各有一个唯一 key，不与其它设置行撞车（T3）", async () => {
+  const { tree } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  const keys = rowKeys(tree);
+  for (const key of ["decisionsSplitMode", "decisionsRetentionDays", "decisionsDateSeparator"]) {
+    assert.equal(
+      keys.filter((item) => item === key).length,
+      1,
+      `「${key}」应恰有一行，实际 key 列表：${keys.join(", ")}`,
+    );
+  }
+  const duplicates = [...new Set(keys.filter((key, index) => keys.indexOf(key) !== index))];
+  assert.deepEqual(duplicates, [], `设置页出现重复的行 key：${duplicates.join(", ")}`);
+});
+
+test("日志分文件：四种模式各自给出对应的路径样例（T3）", async () => {
+  // date 是默认模式：样例用服务端下发的分隔符拼出来。
+  const dateMode = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  assert.ok(dateMode.text.includes("日志分文件"), "应有「日志分文件」这一行");
+  assert.ok(
+    dateMode.text.includes("logs/2026-11-15.log"),
+    `默认（date）应给按日期的样例，实际：\n${dateMode.text.slice(0, 1600)}`,
+  );
+  assert.ok(dateMode.text.includes("一天一个文件"), "应说明一天一个文件");
+
+  const underscore = await render(stateWith({ decisionsDateSeparator: "_" }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  assert.ok(
+    underscore.text.includes("logs/2026_11_15.log"),
+    `分隔符换成 _ 之后样例也要跟着变，实际：\n${underscore.text.slice(0, 1600)}`,
+  );
+
+  const session = await render(stateWith({ decisionsSplitMode: "session" }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  assert.ok(
+    session.text.includes("按会话分文件：logs/<会话名>__<会话 id 前 8 位>.log"),
+    `session 模式应给会话样例，实际：\n${session.text.slice(0, 1600)}`,
+  );
+  // 日期分隔符只在 date 模式有意义：其它模式不该出现一个改了没效果的控件。
+  assert.equal(
+    session.text.includes("日期分隔符"),
+    false,
+    "非 date 模式不该显示「日期分隔符」（改了没有效果）",
+  );
+
+  const workspace = await render(stateWith({ decisionsSplitMode: "workspace" }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  assert.ok(
+    workspace.text.includes("按工作区分文件：logs/<工作区名>.log"),
+    `workspace 模式应给工作区样例，实际：\n${workspace.text.slice(0, 1600)}`,
+  );
+
+  const single = await render(stateWith({ decisionsSplitMode: "single" }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  assert.ok(
+    single.text.includes("全部追加到同一个 decisions.jsonl"),
+    `single 模式应说明退回单一文件，实际：\n${single.text.slice(0, 1600)}`,
+  );
+});
+
+test("日志分文件：下拉的四档齐全，且回显服务端的当前值（T3）", async () => {
+  const { tree } = await render(stateWith({ decisionsSplitMode: "session" }), {
+    slots: { [SLOTS.decisions]: decisionsFixture },
+  });
+  const select = controlOfRow(tree, "日志分文件");
+  assert.ok(select !== undefined, "没有找到「日志分文件」下拉");
+  assert.equal(select.type, "select");
+  assert.equal(select.props.value, "session", "应回显服务端的当前模式，而不是默认 date");
+  const options = (select.children ?? [])
+    .filter((child) => child?.type === "option")
+    .map((child) => child.props.value);
+  assert.deepEqual(options, ["single", "date", "session", "workspace"], "四个模式必须都能选");
+});
+
+test("日志分文件 / 分隔符的选项由服务端下发，不在前端硬编码（T3）", async () => {
+  // 与服务端「多一种分法」同步的机制：服务端把可用值放进
+  // `decisionsSplitModes` / `decisionsDateSeparators`，界面照办。
+  const { tree } = await render(
+    stateWith({ decisionsSplitMode: "date", decisionsSplitModes: ["single", "date"], decisionsDateSeparators: ["-", "_"] }),
+    { slots: { [SLOTS.decisions]: decisionsFixture } },
+  );
+  const split = controlOfRow(tree, "日志分文件");
+  assert.deepEqual(
+    (split.children ?? []).filter((child) => child?.type === "option").map((child) => child.props.value),
+    ["single", "date"],
+    "分文件选项应照服务端下发（不自己补 workspace）",
+  );
+  const sep = controlOfRow(tree, "日期分隔符");
+  assert.deepEqual(
+    (sep.children ?? []).filter((child) => child?.type === "option").map((child) => child.props.value),
+    ["-", "_"],
+    "分隔符选项应照服务端下发（不自己补 .）",
+  );
+});
+
+test("日志保留：数字框范围 0–3650，hint 显示文件数与占用（T3）", async () => {
+  const { tree, text } = await render(
+    stateWith({ decisionsRetentionDays: 14, decisionsStorage: { files: 3, bytes: 2 * 1024 * 1024 } }),
+    { slots: { [SLOTS.decisions]: decisionsFixture } },
+  );
+  const input = controlOfRow(tree, "日志保留");
+  assert.ok(input !== undefined, "没有找到「日志保留」数字框");
+  assert.equal(input.type, "input");
+  assert.equal(input.props.type, "number");
+  assert.equal(String(input.props.min), "0", "0 = 不按天清理（服务端支持）");
+  assert.equal(String(input.props.max), "3650", "最多保留 3650 天（与服务端校验一致）");
+  assert.equal(String(input.props.value), "14", "应回显服务端当前值");
+
+  assert.ok(
+    text.includes("3 个文件 / 2 MB"),
+    `hint 应显示文件数与占用，实际：\n${text.slice(0, 1600)}`,
+  );
+  assert.ok(text.includes("每 6 小时清理一次"), "hint 应说明清理周期");
+  assert.ok(text.includes("0 = 不按天清理"), "hint 应说明 0 的语义");
+  assert.ok(
+    text.includes("文件名会包含会话名或工作区名"),
+    `hint 应提示文件名里含会话/工作区名（隐私），实际：\n${text.slice(0, 1600)}`,
+  );
+});
+
+test("服务端没下发 decisionsStorage 时不编数字（只说清理周期与隐私）", async () => {
+  const { text } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  assert.ok(text.includes("每 6 小时清理一次"), "仍应说明清理周期");
+  assert.equal(text.includes(" 个文件 / "), false, "没有数据时不该显示「0 个文件」这种编出来的数字");
+});
+
+test("改任一日志设置都会 PUT /config，且三格一起提交（否则保存后回弹）", async () => {
+  const { tree } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
+  const select = controlOfRow(tree, "日志分文件");
+  assert.ok(select !== undefined, "没有找到「日志分文件」下拉");
+
+  const stub = stubFetch();
+  try {
+    select.props.onChange({ target: { value: "session" } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  } finally {
+    stub.restore();
+  }
+  const call = stub.calls.find((item) => item.url.endsWith("/api/decision-engine/config"));
+  assert.ok(call !== undefined, `应 PUT /config，实际：${stub.calls.map((c) => c.url).join(", ")}`);
+  const body = JSON.parse(call.init.body);
+  // 三格一起提交：缺任何一格，服务端就按 DEFAULTS 落盘，界面下次刷新回弹。
+  assert.equal(body.decisionsSplitMode, "session", `patch 应带上新的分文件模式，实际：${call.init.body}`);
+  assert.equal(body.decisionsRetentionDays, 30, "patch 应带上生效的保留天数（默认 30）");
+  assert.equal(body.decisionsDateSeparator, "-", "patch 应带上生效的日期分隔符（默认 -）");
+});
+
+test("日志设置的 draft 字段在三处服务端状态派生里都同步（回弹的结构性守卫）", async () => {
+  // 「选完保存又弹回去」在本仓库反复出现过（DEC-037 记过同一类事故）：根因
+  // 永远是**某个派生点漏了一格**——refresh（拉状态）、draft 兜底（首帧）、
+  // applyServerState（保存成功后）三处必须同时有。
+  //
+  // 渲染测试的 react 桩不跑真实 setState/重渲染，看不到「下一帧回弹」，
+  // 所以这里退一步做结构性断言：源码里至少要有三处 `字段: 服务端值` 的赋值，
+  // 再外加 PUT patch 里的一处。少了任何一处，断言数不够就会变红。
+  const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
+  for (const field of ["decisionsSplitMode", "decisionsRetentionDays", "decisionsDateSeparator"]) {
+    const assignments = source.match(new RegExp(`\\b${field}: `, "g")) ?? [];
+    assert.ok(
+      assignments.length >= 4,
+      `「${field}」在三处派生 + patch 里应至少出现 4 次赋值，实际 ${assignments.length} 次——很可能漏了一处（保存后回弹）`,
+    );
+  }
+});
+
+
+// ===========================================================================
+// 安全档位（DEC-035 / T1）：四段滑块
 // ===========================================================================
 //
 // 这一组防的是「控件存在但用户用不了 / 看见的是内部 id / 点了不落盘」。
@@ -2131,28 +2399,48 @@ function buttonLabels(node, out = []) {
   return out;
 }
 
-test("配置页渲染四段滑块，且四个段依次是 自治 / 轻松 / 默认 / 谨慎", async () => {
-  const { tree, text, controls } = await render(stateWith({}), {
+test("配置页渲染四段滑块，且四个段依次是 不问 / 少问 / 默认 / 多问（T1）", async () => {
+  const { tree, text } = await render(stateWith({}), {
     slots: { [SLOTS.decisions]: decisionsFixture },
   });
 
-  assert.ok(text.includes("人工审核比例"), `配置页缺少「人工审核比例」这一行：\n${text.slice(0, 800)}`);
+  // T1：区块标题由「人工审核比例」改为「安全档位」——四档调的是**软性审查
+  // 升不升级**，而不是「审核比例」（权限强制的人工批准与拒绝不受它影响）。
+  assert.ok(text.includes("安全档位"), `配置页缺少「安全档位」这一块：\n${text.slice(0, 800)}`);
+  assert.equal(text.includes("人工审核比例"), false, "不该再出现旧标题「人工审核比例」");
+  assert.ok(
+    text.includes("权限强制的人工批准与拒绝不受档位影响"),
+    `hint 应写明强制审批不受档位影响，实际：\n${text.slice(0, 900)}`,
+  );
+  assert.ok(
+    text.includes("审批策略为永不询问时任何询问都会变成拒绝"),
+    `hint 应写明「永不询问」策略的后果，实际：\n${text.slice(0, 900)}`,
+  );
 
-  // 四段必须都在。用「包含」而不是「等于」：标签带语义尾注
-  //（「轻松（只问最前 1%）」），那正是让用户看懂「往右更常问」的那半句。
+  // 四段必须都在，且标签来自**服务端**下发的 label（不问 / 少问 / 默认 / 多问）。
   const labels = buttonLabels(tree);
   const segment = (name) => labels.some((label) => label.includes(name));
-  for (const name of ["自治", "轻松", "默认", "谨慎"]) {
+  for (const name of ["不问", "少问", "默认", "多问"]) {
     assert.ok(segment(name), `滑块缺少「${name}」段；实际按钮文字：${JSON.stringify(labels)}`);
   }
 
-  // 比例说明必须出现在轨道下方那一行——它取代了原本挤在落点上的尾注
-  //（落点放不下「轻松（只问最前 1%）」，窄面板里只能换行叠成一团；容器自 DEC-040
-  //  起不再限宽，但窗口窄的时候这条照样成立）。
-  // 断言「当前档位」这一行：默认档不按比例，所以说的是模型自己的判断。
+  // 轨道下方那一行只说 `preset.summary`。旧的「只问最前 N% 的调用」是
+  // 把分位数换算成打扰比例——冷启动、按点分义、权限强制升级三种情况下都
+  // 对不上，用户据此调档会得到与预期相反的结果。
   assert.ok(
-    text.includes("默认：按决策模型自己的判断"),
-    `应说明当前档位的语义，实际：\n${text.slice(0, 900)}`,
+    text.includes("沿用决策模型判断：中/高风险"),
+    `应说明当前档位的语义（preset.summary），实际：\n${text.slice(0, 900)}`,
+  );
+  assert.equal(text.includes("只问最前"), false, "不该再出现「只问最前 N%」的换算");
+  // 总则改成正确的那句：分位数按 provider × model 分开校准。
+  assert.ok(
+    text.includes("分位数按 provider × model 分开校准"),
+    `总则应说明分位数按 provider × model 校准，实际：\n${text.slice(0, 900)}`,
+  );
+  assert.equal(
+    text.includes("高风险调用一律直接拦下"),
+    false,
+    "旧总则把「四档一致拦下高风险」写错了：真正拦下它的是强制安全约束，与档位无关",
   );
 });
 
@@ -2167,7 +2455,7 @@ test("滑块不是下拉菜单：四档不是 select 的选项", async () => {
     .filter((node) => node.type === "select")
     .flatMap((node) => (node.children ?? []).filter((child) => child?.type === "option"))
     .map((node) => collectText(node).join(""));
-  for (const name of ["自治", "轻松", "谨慎"]) {
+  for (const name of ["不问", "少问", "多问"]) {
     assert.ok(
       !selectOptionTexts.some((option) => option.includes(name)),
       `「${name}」不应出现在 select 的选项里（要求是分段滑块，不是下拉）`,
@@ -2188,7 +2476,7 @@ test("当前档位被打勾（aria-pressed），其余为 false", async () => {
     if (node === null || typeof node !== "object") return;
     if (node.type === "button" && node.props?.["aria-pressed"] !== undefined) {
       const label = collectText(node).join("");
-      if (["自治", "轻松", "默认", "谨慎"].some((name) => label.includes(name))) {
+      if (["不问", "少问", "默认", "多问"].some((name) => label.includes(name))) {
         pressed.push({ label, pressed: node.props["aria-pressed"] });
       }
     }
@@ -2198,7 +2486,7 @@ test("当前档位被打勾（aria-pressed），其余为 false", async () => {
   assert.equal(pressed.length, 4, `应有四个带 aria-pressed 的段，实际 ${pressed.length}`);
   const active = pressed.filter((item) => item.pressed === true);
   assert.equal(active.length, 1, `只能有一个选中段，实际 ${JSON.stringify(active)}`);
-  assert.ok(active[0].label.includes("轻松"), `选中段应为轻松，实际 ${active[0].label}`);
+  assert.ok(active[0].label.includes("少问"), `选中段应为少问，实际 ${active[0].label}`);
 });
 
 test("服务端不下发 tolerance 时，配置页照常渲染且不出现滑块（曾经的回归）", async () => {
@@ -2213,9 +2501,30 @@ test("服务端不下发 tolerance 时，配置页照常渲染且不出现滑块
   const { text } = await render(stateWith({}), {
     slots: { [SLOTS.decisions]: withoutTolerance },
   });
-  assert.ok(!text.includes("人工审核比例"), "没有下发数据时不该画出滑块");
+  assert.ok(!text.includes("安全档位"), "没有下发数据时不该画出滑块");
   // 页面其余部分必须仍在（证明是「少了一块」，不是「整页挂了」）。
   assert.ok(text.includes("启用守卫"), `页面其它内容应正常，实际：\n${text.slice(0, 600)}`);
+});
+
+test("校准脚注：不按比例的两档说「不做比例判断」，不说「校准中」（T1）", async () => {
+  // 旧文案把「不问」档也说成「校准中」/「从不询问用户」，让用户以为它还没
+  // 生效。真实语义是：这两档不按分位数走，校准对它们没有意义。
+  const notAsk = await render(stateWith({}), {
+    slots: { [SLOTS.decisions]: { ...decisionsFixture, tolerance: toleranceFixture({ level: "autonomous" }) } },
+  });
+  assert.ok(
+    notAsk.text.includes("这一档不做比例判断"),
+    `「不问」档应说明不做比例判断，实际：\n${notAsk.text.slice(0, 900)}`,
+  );
+  assert.equal(notAsk.text.includes("校准中"), false, "不按比例的档位不该显示「校准中」");
+
+  const dflt = await render(stateWith({}), {
+    slots: { [SLOTS.decisions]: { ...decisionsFixture, tolerance: toleranceFixture({ level: "default" }) } },
+  });
+  assert.ok(
+    dflt.text.includes("沿用决策模型判断，不做比例校准"),
+    `「默认」档应说明沿用模型判断、不做比例校准，实际：\n${dflt.text.slice(0, 900)}`,
+  );
 });
 
 test("校准脚注：未就绪时写「校准中 n/50」，就绪后写实际阈值", async () => {
@@ -2275,7 +2584,7 @@ test("滑块独占一整行，没被塞进 rowLine 的右半边（真机竖排�
   });
 
   // 收集「段按钮」：带 aria-pressed 且文案是四档之一的 button。
-  const NAMES = ["自治", "轻松", "默认", "谨慎"];
+  const NAMES = ["不问", "少问", "默认", "多问"];
   const stopButtons = [];
   const rowLineContainers = [];
   const walk = (node, ancestors) => {
@@ -2629,7 +2938,7 @@ test("图表：裁决构成条只在有裁决时出现，且不含「未裁决�
   const bars = findAllByType(tree, "SegmentedBar");
   assert.equal(bars.length, 1, "有裁决时应渲染一条构成条");
   const labels = bars[0].props.data.map((item) => item.label);
-  assert.deepEqual(labels, ["放行", "询问", "拦截"], "构成条只含三种裁决，顺序固定");
+  assert.deepEqual(labels, ["放行", "转人工", "拦截"], "构成条只含三种裁决，顺序固定（ask 统一叫「转人工」）");
   assert.equal(
     bars[0].props.order,
     "data",

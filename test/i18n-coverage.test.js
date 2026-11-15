@@ -26,6 +26,20 @@ const STATIC_TABLES = ["EN_CONFIG", "EN_STATS", "EN_MISC", "EN_LABELS"];
 const TEMPLATE_TABLES = ["T_CONFIG", "T_STATS", "T_MISC"];
 const ALL_TABLES = [...STATIC_TABLES, ...TEMPLATE_TABLES];
 
+/**
+ * **独立**的裁决词表（T4）：`VERDICT_TEXT_ZH` / `VERDICT_TEXT_EN`。
+ *
+ * 它们故意**不并入** `EN` / `T`（`tr()` 用的那两张合并表）：裁决格里的
+ * 「放行 / 拦截」与统计页的「放行 / 拦截」是两套说法，挤进同一张表必然互相
+ * 覆盖。但「一个中文词有英文对应」这条仍然要守，所以这里把它们当作
+ * **成对词典**处理：字面量扫描跳过（它们本身就是词典），另加一条成对校验
+ *（键集相同、英文里没有中文）。
+ */
+const BILINGUAL_TABLES = ["VERDICT_TEXT_ZH", "VERDICT_TEXT_EN"];
+
+/** 字面量扫描要跳过的区间：所有词典表（合并表 + 独立表）。 */
+const SCAN_SKIP_TABLES = [...ALL_TABLES, ...BILINGUAL_TABLES];
+
 /** 取某个 `const NAME = { ... };` 的正文。 */
 function tableBody(name) {
   const start = SOURCE.indexOf(`const ${name} = {`);
@@ -36,7 +50,7 @@ function tableBody(name) {
 }
 
 /** 词表正文在源码里的字符区间——比对字面量时跳过，否则「词表里有中文」自证通过。 */
-const TABLE_RANGES = ALL_TABLES.map((name) => {
+const TABLE_RANGES = SCAN_SKIP_TABLES.map((name) => {
   const start = SOURCE.indexOf(`const ${name} = {`);
   const end = SOURCE.indexOf("\n    };", start);
   return [start, end];
@@ -66,6 +80,15 @@ function tableKeys() {
     }
   }
   return keys;
+}
+
+/** 取某张表的 `键 → 值`（按行匹配，值里的转义按 JSON 还原）。 */
+function tableEntries(name) {
+  const out = new Map();
+  for (const match of tableBody(name).matchAll(/\n\s+"((?:[^"\\]|\\.)*)":\s*"((?:[^"\\]|\\.)*)"/g)) {
+    out.set(JSON.parse(`"${match[1]}"`), JSON.parse(`"${match[2]}"`));
+  }
+  return out;
 }
 
 const KEYS = tableKeys();
@@ -195,4 +218,34 @@ test("词表：每个 key 都有非空英文", () => {
     }
   }
   assert.deepEqual(empty, [], `空的英文译文：\n${empty.join("\n")}`);
+});
+
+// ---------------------------------------------------------------- 独立裁决词表（T4）
+//
+// 裁决格不再走 `tr()`，而是用自成一对的 `VERDICT_TEXT_ZH` / `VERDICT_TEXT_EN`
+//（见 client.js 里那段注释：这些词面与统计页重名却表达不同东西）。
+// 「独立」不等于「不用覆盖」——漏一条英文，英文界面那一格就是中文。
+// 下面两条把这件事钉住：键集必须一致，英文值里不许有中文，中文值必须真的是中文。
+
+test("独立裁决词表：中英两表键集相同", () => {
+  const zh = [...tableEntries("VERDICT_TEXT_ZH").keys()].sort();
+  const en = [...tableEntries("VERDICT_TEXT_EN").keys()].sort();
+  assert.deepEqual(
+    en,
+    zh,
+    `裁决词表的中英键集不一致（漏一条英文 = 英文界面那一格变回中文）：\n中文：${zh.join(", ")}\n英文：${en.join(", ")}`,
+  );
+});
+
+test("独立裁决词表：中文是中文、英文里不残留中文", () => {
+  const zh = tableEntries("VERDICT_TEXT_ZH");
+  const en = tableEntries("VERDICT_TEXT_EN");
+  const offenders = [];
+  for (const [key, value] of zh) {
+    if (!CJK.test(value)) offenders.push(`  VERDICT_TEXT_ZH.${key} 应为中文，实际「${value}」`);
+  }
+  for (const [key, value] of en) {
+    if (CJK.test(value)) offenders.push(`  VERDICT_TEXT_EN.${key} 不应含中文，实际「${value}」`);
+  }
+  assert.deepEqual(offenders, [], `独立裁决词表有问题：\n${offenders.join("\n")}`);
 });

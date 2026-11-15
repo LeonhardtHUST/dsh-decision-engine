@@ -1761,14 +1761,14 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   // 每一组**至少**要有这些项出现在它的正文里。用文本判断归属，
   // 因为 row() 的标题藏在 `rowText > rowTitle` 两层里。
   const EXPECTED = {
-    connection: ["免费模型（服务端下发）", "服务提供方", "模型", "API Key", "生效端点", "密钥保存位置"],
+    connection: ["免费模型（服务端下发）", "服务提供方", "模型", "API Key", "生效端点", "连通性测试", "密钥保存位置"],
     // 「真正拦截」已并入「工具授权」三态；新增「自动审查回退」。
     // T1：区块标题由「人工审核比例」改为「安全档位」。
     guard: ["启用守卫", "工具授权", "自动审查回退", "安全档位", "决策模型参与点"],
     // T3：在「决策历史」之后新增日志分文件 / 保留（默认 date 模式还有分隔符）。
     record: ["决策历史", "日志分文件", "日期分隔符", "日志保留", "审批卡正文可读化"],
     // T2：由「思考模式」改名为「决策模型思考」。
-    model: ["决策模型思考", "匿名统计"],
+    model: ["决策模型思考", "匿名使用统计"],
   };
 
   for (const [id, labels] of Object.entries(EXPECTED)) {
@@ -1800,19 +1800,23 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
   }
 });
 
-test("页脚（保存状态 / 测试端点 / 状态信息）在所有分组之下，不属于任何一组（DEC-051）", async () => {
+test("页脚（保存状态 / 状态信息）在所有分组之下，连通性测试已移入连接组（DEC-074）", async () => {
   const { tree } = await render(stateWith({}), { slots: { [SLOTS.decisions]: decisionsFixture } });
   const sections = sectionsOf(tree);
   const bodyText = sections.map((section) => textsOf(bodyOf(section)).join("\n"));
-  // 页脚回答的是「刚才存没存、端点通不通」，是四组的共同结论。
-  for (const label of ["改动即保存", "测试端点"]) {
-    assert.equal(
-      bodyText.some((text) => text.includes(label)),
-      false,
-      `「${label}」是页脚，应留在分组之外`,
-    );
-    assert.ok(textsOf(tree).join("\n").includes(label), `页面上应有「${label}」`);
-  }
+  // 页脚回答的是「刚才存没存」，是四组的共同结论。
+  assert.equal(
+    bodyText.some((text) => text.includes("改动即保存")),
+    false,
+    "「改动即保存」是页脚，应留在分组之外",
+  );
+  assert.ok(textsOf(tree).join("\n").includes("改动即保存"), "页面上应有「改动即保存」");
+  // 连通性测试反过来：它必须出现在某一组（连接方式）里，而不是页脚。
+  assert.ok(
+    sections.some((section) => section.props["data-section"] === "connection"
+      && textsOf(bodyOf(section)).join("\n").includes("连通性测试")),
+    "连通性测试应位于连接方式组内",
+  );
   // 页脚排在四个分组之后：它是 `.de-cfg` 里的最后一个子节点，自己包在
   // `.de-cfg__footer` 里（不该被套上分组的竖线与顶边线）。
   const container = findNode(tree, (node) => node.type === "div" && node.props?.className === "de-cfg");
@@ -1825,10 +1829,10 @@ test("页脚（保存状态 / 测试端点 / 状态信息）在所有分组之�
   assert.ok(lastSectionAt >= 0, "没找到分组");
   assert.ok(footerAt >= 0, "没找到页脚容器");
   assert.ok(footerAt > lastSectionAt, "页脚应排在所有分组之后");
-  // 页脚容器里必须装得下那两项。
+  // 页脚容器里必须装得下保存状态；测试按钮不该再出现在这里。
   const footerText = textsOf(kids[footerAt]).join("\n");
   assert.ok(footerText.includes("改动即保存"), "页脚应有保存状态");
-  assert.ok(footerText.includes("测试端点"), "页脚应有测试端点按钮");
+  assert.equal(footerText.includes("测试端点"), false, "测试按钮已前移，不该留在页脚");
 });
 
 test("分组展开状态记在 localStorage，刷新后不弹回（DEC-051）", async () => {
@@ -3860,4 +3864,32 @@ test("选百炼时出现 Workspace ID 与地域两格，并能写回 config", as
 test("非百炼 provider 不显示 Workspace / 地域两格", async () => {
   const { text } = await render(stateWith({}));
   assert.equal(text.includes("Workspace ID"), false);
+});
+
+test("匿名使用统计：说清用途、上报字段与不包含什么（T4）", async () => {
+  const { tree } = await render(stateWith({}));
+  const text = textsOf(tree).join("\n");
+  assert.ok(text.includes("匿名使用统计"), "标题应明确是「使用统计」");
+  assert.ok(text.includes("值不值得继续维护"), "应说明它存在的目的（作者判断是否继续维护）");
+  assert.ok(text.includes("随机安装 ID"), "应列出上报字段");
+  assert.ok(text.includes("不含会话内容"), "应明确不包含的内容");
+  assert.ok(text.includes("off（完全关闭）"), "off 档应说明是完全关闭");
+});
+
+test("连通性测试在模型配置区，且按钮与说明都在同一行（T4）", async () => {
+  const { tree } = await render(stateWith({}));
+  const row = findNode(tree, (item) => {
+    const children = Array.isArray(item?.children) ? item.children : [];
+    const head = children[0];
+    return head !== undefined && head !== null && collectText(head).includes("连通性测试");
+  });
+  assert.ok(row !== null && row !== undefined, "没有找到「连通性测试」行");
+  assert.ok(
+    textsOf(tree).join("\n").includes("回退语言模型"),
+    "说明里应写明同时测回退模型",
+  );
+  assert.ok(
+    findNode(row.children, (node) => node.type === "button" && collectText(node).join("").includes("测试端点")) !== null,
+    "按钮应在这同一行里",
+  );
 });

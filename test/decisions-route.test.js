@@ -680,3 +680,60 @@ test("sessionMetaOf：字符串 id（思维链翻译点）也能解析", () => {
   assert.equal(typeof meta.workspaceName, "string");
   assert.ok(meta.workspaceName.length > 0);
 });
+
+// ------------------------------------------------- 百炼 / TokenHub 配置路由
+
+test("百炼配置能保存并回显 Workspace/地域，端点按 workspace 拼出", async () => {
+  const { home, routes } = setup();
+  try {
+    const res = await routes["/api/decision-engine/config"].fetch({
+      method: "PUT",
+      text: async () =>
+        JSON.stringify({
+          provider: "bailian",
+          bailianWorkspaceId: "ws_demo",
+          bailianRegion: "ap-southeast-1",
+          bailianModel: "decision-model-preview",
+        }),
+    });
+    assert.equal(res.status, 200, `保存应成功：${JSON.stringify(await res.clone().json())}`);
+    const raw = readFileSync(join(home, "dsh-decision-engine", "config.yml"), "utf8");
+    assert.ok(raw.includes("provider: bailian"), `配置内容：${raw}`);
+    assert.ok(raw.includes("bailianWorkspaceId: ws_demo"), `配置内容：${raw}`);
+    assert.ok(raw.includes("bailianRegion: ap-southeast-1"), `配置内容：${raw}`);
+
+    const { status, data } = await get(routes, "/api/decision-engine/status");
+    assert.equal(status, 200);
+    assert.equal(data.provider, "bailian");
+    assert.equal(data.bailianWorkspaceId, "ws_demo");
+    assert.equal(data.bailianRegion, "ap-southeast-1");
+    assert.match(
+      data.baseUrl,
+      /^https:\/\/ws_demo\.ap-southeast-1\.maas\.aliyuncs\.com\/compatible-mode\/v1\/systemone$/,
+    );
+  } finally {
+    cleanupDir(home);
+  }
+});
+
+test("百炼非法地域 / 非法 workspace 一律 400，且不落盘", async () => {
+  const configPath = (home) => join(home, "dsh-decision-engine", "config.yml");
+  for (const patch of [
+    { bailianRegion: "us-east-1" },
+    { bailianWorkspaceId: "evil.example.com" },
+    { bailianWorkspaceId: "ws with space" },
+    { bailianRegion: 1 },
+  ]) {
+    const { home, routes } = setup();
+    try {
+      const res = await routes["/api/decision-engine/config"].fetch({
+        method: "PUT",
+        text: async () => JSON.stringify(patch),
+      });
+      assert.equal(res.status, 400, JSON.stringify(patch));
+      assert.equal(existsSync(configPath(home)), false, "被拒的请求不该写出配置文件");
+    } finally {
+      cleanupDir(home);
+    }
+  }
+});

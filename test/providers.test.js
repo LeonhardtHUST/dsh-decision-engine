@@ -42,10 +42,10 @@ import {
 
 // ---------------------------------------------------------------- 1. 内置预设
 
-test("内置预设齐备：systemone / bamboonode / siliconflow / siliconflow-intl / perplexity / openrouter / custom", () => {
+test("内置预设齐备：systemone / bamboonode / siliconflow / siliconflow-intl / bailian / tokenhub / perplexity / openrouter / custom", () => {
   assert.deepEqual(
     [...PROVIDER_IDS],
-    ["systemone", "bamboonode", "siliconflow", "siliconflow-intl", "perplexity", "openrouter", "custom"],
+    ["systemone", "bamboonode", "siliconflow", "siliconflow-intl", "bailian", "tokenhub", "perplexity", "openrouter", "custom"],
   );
   for (const id of PROVIDER_IDS) {
     assert.ok(PROVIDER_PRESETS[id] !== undefined, `缺少预设 ${id}`);
@@ -127,8 +127,14 @@ test("providerCatalog 覆盖全部 provider 且带展示信息", () => {
     assert.equal(item.customizable, item.id === "custom");
   }
   // 内置预设必须自带默认地址，否则「选内置就用默认」这条承诺落空。
+  // 动态预设（百炼）的地址由 workspace 拼出，静态 baseUrl 为空是设计，
+  // 但必须下发一个 https 模板，界面才能展示端点形状。
   for (const item of catalog) {
     if (item.id === "custom") continue;
+    if (item.dynamicBaseUrl === true) {
+      assert.ok(/^https:\/\//.test(item.baseUrlTemplate), `${item.id} 的动态地址模板不是 https`);
+      continue;
+    }
     assert.ok(/^https?:\/\//.test(item.baseUrl), `${item.id} 的默认地址不是 http(s)`);
   }
   // 每个 provider 必须带自己的显式 key 字段名：界面靠它说明「key 存在
@@ -140,6 +146,8 @@ test("providerCatalog 覆盖全部 provider 且带展示信息", () => {
     "bamboonodeApiKey",
     "siliconflowApiKey",
     "siliconflowIntlApiKey",
+    "bailianApiKey",
+    "tokenhubApiKey",
     "perplexityApiKey",
     "openrouterApiKey",
     "customApiKey",
@@ -153,6 +161,8 @@ test("providerCatalog 覆盖全部 provider 且带展示信息", () => {
     "model",
     "siliconflowModel",
     "siliconflowIntlModel",
+    "bailianModel",
+    "tokenhubModel",
     "perplexityModel",
     "openrouterModel",
     "customModel",
@@ -590,6 +600,8 @@ test("预设带 think_mode 能力位：只有 bamboonode 是 supported，其余 
       bamboonode: "supported",
       siliconflow: "unknown",
       "siliconflow-intl": "unknown",
+      bailian: "unknown",
+      tokenhub: "unknown",
       perplexity: "unsupported",
       openrouter: "unsupported",
       custom: "unknown",
@@ -732,4 +744,71 @@ test("五个 provider 各读各的 key，同时配好也互不串用", () => {
     const cfg = { provider: id, customBaseUrl: "https://gw.example.com/v1" };
     assert.equal(resolveKeyFor(resolveProvider(cfg), { credentialReader: reader, env: {} }), expected, id);
   }
+});
+
+// ------------------------------------------------- 阿里云百炼 / TokenHub
+
+test("阿里云百炼：workspace + 地域拼出 workspace 专用 systemone 端点", () => {
+  for (const region of ["cn-beijing", "ap-southeast-1"]) {
+    const provider = resolveProvider({
+      provider: "bailian",
+      bailianWorkspaceId: "ws_demo123",
+      bailianRegion: region,
+    });
+    assert.equal(provider.valid, true, provider.error);
+    assert.equal(
+      provider.endpoint,
+      `https://ws_demo123.${region}.maas.aliyuncs.com/compatible-mode/v1/systemone`,
+    );
+    assert.equal(provider.model, "decision-model-preview", "model 必填，留空回落预设默认");
+    assert.equal(provider.apiKeyEnv, "DASHSCOPE_API_KEY");
+    assert.equal(provider.endpointStyle, "systemone");
+  }
+});
+
+test("百炼未填 workspace：明确无效且不构造空地址请求", () => {
+  const provider = resolveProvider({ provider: "bailian" });
+  assert.equal(provider.valid, false);
+  assert.match(provider.error, /Workspace ID/);
+  assert.equal(provider.endpoint, "");
+  assert.equal(provider.candidates.length, 0);
+});
+
+test("百炼 workspace 含非法字符：判无效（不能拼出别的域名）", () => {
+  for (const workspace of ["evil.example.com", "ws/../x", "ws with space", "ws@x"]) {
+    const provider = resolveProvider({ provider: "bailian", bailianWorkspaceId: workspace });
+    assert.equal(provider.valid, false, workspace);
+    assert.equal(provider.endpoint, "", workspace);
+  }
+});
+
+test("百炼地域非法时回落默认 cn-beijing（避免拼出不存在的域名）", () => {
+  const provider = resolveProvider({
+    provider: "bailian",
+    bailianWorkspaceId: "ws_demo",
+    bailianRegion: "us-east-1",
+  });
+  assert.equal(provider.valid, true);
+  assert.match(provider.endpoint, /^https:\/\/ws_demo\.cn-beijing\./);
+});
+
+test("TokenHub 预设指向 tokenhub.com 的 /v1/systemone", () => {
+  const provider = resolveProvider({ provider: "tokenhub" });
+  assert.equal(provider.valid, true, provider.error);
+  assert.equal(provider.endpoint, "https://us-api.tokenhub.com/v1/systemone");
+  assert.equal(provider.model, "jev-latest");
+  assert.equal(provider.apiKeyEnv, "TOKENHUB_API_KEY");
+});
+
+test("catalog 下发动态地址字段：百炼带模板/字段名/地域，TokenHub 不带", () => {
+  const catalog = providerCatalog();
+  const bailian = catalog.find((item) => item.id === "bailian");
+  assert.equal(bailian.dynamicBaseUrl, true);
+  assert.equal(bailian.workspaceField, "bailianWorkspaceId");
+  assert.equal(bailian.regionField, "bailianRegion");
+  assert.deepEqual(bailian.regions, ["cn-beijing", "ap-southeast-1"]);
+  assert.match(bailian.baseUrlTemplate, /^https:\/\/\{workspaceId\}\.\{region\}\./);
+  const tokenhub = catalog.find((item) => item.id === "tokenhub");
+  assert.equal(tokenhub.dynamicBaseUrl, false);
+  assert.equal(tokenhub.baseUrl, "https://us-api.tokenhub.com/v1");
 });

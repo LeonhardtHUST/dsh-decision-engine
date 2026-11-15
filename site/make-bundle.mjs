@@ -112,6 +112,19 @@ const DEFAULT_PLUGIN="dsh-decision-engine";
 
 function dayOf(ms){return new Date(ms+TZ).toISOString().slice(0,10)}
 function dayStart(day){return Date.parse(day+"T00:00:00+08:00")}
+// 客户端可显式声明「这组计数属于哪一天」（日终/次日上报上一完整自然日）。
+// 只接受最近 7 天且不晚于今天：允许补报昨天，但不允许伪造任意历史。
+const DAY_RE=/^\d{4}-\d{2}-\d{2}$/;
+function claimedDay(raw,now){
+  const value=clean(raw,10);
+  if(!DAY_RE.test(value))return "";
+  const start=dayStart(value);
+  if(!Number.isFinite(start))return "";
+  const today=dayOf(now);
+  if(value>today)return "";
+  if(start<dayStart(dayOf(now-6*86400e3)))return "";
+  return value;
+}
 function json(obj,status){return new Response(JSON.stringify(obj),{status:status||200,headers:Object.assign({"content-type":"application/json; charset=utf-8"},NOSTORE)})}
 function clean(v,max){return typeof v==="string"?v.trim().slice(0,max||MAX_FIELD):""}
 function intOr(v,dflt,max){const n=Number(v);if(!Number.isFinite(n)||n<0)return dflt;return Math.min(Math.trunc(n),max)}
@@ -144,7 +157,9 @@ async function ingestEvent(rq,env,ctx){
   const decisions=intOr(body.d,0,100000);
 
   const now=Date.now();
-  const day=dayOf(now);
+  // 归属日：客户端声明的「上一完整自然日」优先；未声明/非法/超出补报窗口
+  // 时退回收到时间（老客户端行为不变）。
+  const day=claimedDay(body.day,now)||dayOf(now);
   // 两个 upsert 合成一个 batch：一次往返、一个事务，也只算一次查询。
   // decisions 取 MAX 而不是累加：同一台机器同一天若真的重复上报（客户端状态
   // 文件被删），也不会把决策数算成两倍。

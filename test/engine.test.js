@@ -23,7 +23,7 @@ import { mountToolPoints, isRetrievalTool, retrievalQuery, DEFAULT_RETRIEVAL_TOO
 import { mountAgentPoints } from "../lib/adapters/agent.js";
 import { mountCotTranslatePoint } from "../lib/adapters/translate.js";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 
@@ -1252,13 +1252,19 @@ test("测试按钮：走注入的 fetchFn、网络错误重试一次，并给出
  * @param options.decisionFetch - 决策端点用的桩；收不到响应就抛错即为失败。
  * @param options.before - apply 之后、点测试之前要做的准备（如制造冷却）。
  */
-async function probeSetup(mod, { decisionFetch, before } = {}) {
+async function probeSetup(mod, { decisionFetch, before, llm, configText } = {}) {
   const home = mkdtempSync(join(tmpdir(), "de-probe-"));
   const originalHome = process.env.DSH_HOME;
   const originalKey = process.env.BAMBOO_API_KEY;
   const originalFetch = globalThis.fetch;
   process.env.DSH_HOME = home;
   process.env.BAMBOO_API_KEY = "probe-test-key";
+  // 需要在 apply 之前写 config.yml：guardFallback 等配置是启动时读的。
+  if (typeof configText === "string") {
+    const dir = join(home, "dsh-decision-engine");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "config.yml"), configText, "utf8");
+  }
   const calls = [];
   // 桩必须在 apply 之前装好：客户端在构造时就固化了 fetchFn。
   globalThis.fetch = async (url, init) => {
@@ -1282,6 +1288,7 @@ async function probeSetup(mod, { decisionFetch, before } = {}) {
     },
     get(name) {
       if (name === "connection") return connection;
+      if (name === "llm") return llm;
       if (name === "sandboxPolicy") return { resolve: () => ({ mode: "workspace-write", workspaceRoot: "/work/repo", additionalWritableRoots: [] }) };
       if (name === "fs") return {
         resolve: async (path, options) => ({ targetKey: posix.resolve(options?.cwd ?? "/work/repo", path) }),
@@ -1427,6 +1434,91 @@ test("测试按钮：不在冷却中时不该出现试探提示（反证上一�
     const data = await env.click();
     assert.doesNotMatch(data.text, /本次为试探请求/, `不在冷却中时不该出现试探提示：${data.text}`);
     assert.match(data.text, /HTTP 200/);
+  } finally {
+    env.restore();
+  }
+});
+
+test("连通性测试同时探测回退语言模型（model 策略），并返回两条结构化结果", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  const llmCalls = [];
+  const llm = {
+    stream(options) {
+      llmCalls.push(options);
+      return (async function* () {
+        yield { type: "text-delta", text: "pong" };
+        yield { type: "finish", reason: { kind: "stop" } };
+      })();
+    },
+  };
+  const env = await probeSetup(mod, {
+    llm,
+    // 回退模型走宿主 llm.stream，不是决策端点；决策端点用成功桩。
+    configText:
+      "enabled: true\n"
+      + "guardFallback: model\n"
+      + "guardFallbackProvider: fixture-provider\n"
+      + "guardFallbackModel: fixture-model\n"
+      + "guardFallbackReasoningEffort: low\n",
+    decisionFetch: async () => okResponse(),
+  });
+  try {
+    const data = await env.click();
+    assert.equal(data.ok, true, `两条链路都成功时整体应为真：${JSON.stringify(data)}`);
+    assert.equal(Array.isArray(data.results), true, "应返回结构化结果");
+    assert.deepEqual(data.results.map((item) => item.label), ["决策端点", "回退语言模型"]);
+    assert.equal(data.results[0].ok, true);
+    assert.equal(data.results[1].ok, true);
+    assert.match(data.results[1].summary, /fixture-provider \/ fixture-model/);
+    assert.equal(llmCalls.length, 1, "回退模型应被真实调用一次");
+    assert.deepEqual(llmCalls[0].tools, [], "连通性测试不能被模型当作工具调用入口");
+    assert.equal(llmCalls[0].maxTokens, 16, "只发最小请求，控制成本");
+    assert.equal(llmCalls[0].purpose, "decision-engine-connectivity");
+  } finally {
+    env.restore();
+  }
+});
+
+test("回退语言模型失败会让整体测试结果为红，并给出原因", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  const llm = {
+    stream() {
+      throw new Error("401 invalid api key");
+    },
+  };
+  const env = await probeSetup(mod, {
+    llm,
+    configText: "enabled: true\nguardFallback: model\nguardFallbackProvider: p\nguardFallbackModel: m\n",
+    decisionFetch: async () => okResponse(),
+  });
+  try {
+    const data = await env.click();
+    assert.equal(data.ok, false, "回退模型失败时整体不能报绿");
+    const fallback = data.results.find((item) => item.key === "fallback");
+    assert.equal(fallback.ok, false);
+    assert.match(fallback.summary, /请求失败/);
+    assert.match(fallback.summary, /401 invalid api key/);
+  } finally {
+    env.restore();
+  }
+});
+
+test("session 策略不测回退模型：标记跳过，但不把整体算失败", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  const env = await probeSetup(mod, {
+    configText: "enabled: true\nguardFallback: session\n",
+    decisionFetch: async () => okResponse(),
+  });
+  try {
+    const data = await env.click();
+    assert.equal(data.ok, true, "没有可测的回退模型链路不算失败");
+    const fallback = data.results.find((item) => item.key === "fallback");
+    assert.equal(fallback.ok, null);
+    assert.equal(fallback.skipped, true);
+    assert.match(fallback.summary, /session/);
   } finally {
     env.restore();
   }

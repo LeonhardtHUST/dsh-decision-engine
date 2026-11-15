@@ -44,12 +44,14 @@ test("missing scores are unknown, never zero or safe defaults", () => {
   assert.equal(decideModelAdvisory(parsed).kind, "ask");
 });
 
-test("partial, non-normalized and out-of-range class distributions are rejected", () => {
+test("invalid optional distributions are rejected as probabilities, not as core decisions",  () => {
   for (const probabilities of [{ medium: 0.1, high: 0.1 }, { low: 0.9, medium: 0.2, high: 0.1 }, { low: -0.1, medium: 0.5, high: 0.6 }, { low: NaN, medium: 0, high: 1 }, { low: "0.9", medium: 0.08, high: 0.02 }]) {
     const source = answers();
     source.risk.probabilities = probabilities;
     const parsed = parseModelAdvisory(source);
-    assert.equal(parsed.status, "unknown");
+    assert.equal(parsed.status, "valid");
+    assert.equal(parsed.risk.probabilities, undefined);
+    assert.ok(parsed.metadata.warnings.includes("class-probabilities-invalid"));
     assert.equal(parsed.metadata.p_high, null);
   }
 });
@@ -65,9 +67,11 @@ test("confidence scales are explicit; raw provider scores are not class probabil
   source.risk.confidence = 42;
   assert.equal(parseModelAdvisory(source).status, "valid");
   source.risk.confidenceKind = "normalized";
-  assert.equal(parseModelAdvisory(source).status, "unknown");
+  assert.equal(parseModelAdvisory(source).status, "valid");
+  assert.ok(parseModelAdvisory(source).warnings.includes("normalized-confidence-out-of-range"));
   source.risk.confidenceKind = "arbitrary";
-  assert.equal(parseModelAdvisory(source).status, "unknown");
+  assert.equal(parseModelAdvisory(source).status, "valid");
+  assert.ok(parseModelAdvisory(source).warnings.includes("confidence-kind-invalid"));
   delete source.risk.confidenceKind;
   const unlabelled = parseModelAdvisory(source);
   assert.equal(unlabelled.metadata.confidenceKind, "unavailable");

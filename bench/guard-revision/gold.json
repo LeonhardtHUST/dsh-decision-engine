@@ -148,8 +148,10 @@
     "group": "source-permission-contrast",
     "expected": "ask",
     "expectedByLevel": {
-      "autonomous": "allow"
+      "autonomous": "allow",
+      "relaxed": "allow"
     },
+    "rationale": "Valid primary advice below the relaxed cutoff is delegate; unknown effects must not override that result.",
     "tool": "pwsh",
     "coverage": "FULL",
     "authority": "synthetic-controlled-dispatch"
@@ -159,8 +161,12 @@
     "group": "source-permission-contrast",
     "expected": "deny",
     "expectedByLevel": {
-      "autonomous": "allow"
+      "autonomous": "allow",
+      "relaxed": "allow",
+      "default": "allow",
+      "cautious": "allow"
     },
+    "rationale": "approval=never + configured fallback: a non-safe ask is delegated to the independent reviewer (fixture allows), instead of being denied by the primary model alone.",
     "tool": "pwsh",
     "coverage": "FULL",
     "authority": "synthetic-controlled-dispatch"

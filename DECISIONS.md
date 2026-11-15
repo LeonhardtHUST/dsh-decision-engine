@@ -2,6 +2,58 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-075 统计账本：未知值、分母对账、缓存基线与安全口径（2026-11-15）
+
+对照 v1.13.0 的统计/概率审计，逐条核对源码后修了 P0 三项与 P1 三项；
+P1-4（概率校准）与 P2（配对 A/B、跨进程微基准）明确不在本次范围。
+
+**P0-1 output token 未知不再写成 0**
+审计属实：`const outputTokens = apiOutputTokens ?? 0` 且来源标 `estimated`，
+等于把「不知道」伪装成「测得 0」，缺失子样本被系统性低估。现在
+`outputTokens = apiOutputTokens ?? null`、来源 `missing`，记录带
+`outputTokensMissing`；聚合时未知值**不进入**已知总量，只累计
+`outputTokensUnmeasured`，并给出 `measuredRequests` 作为平均 output 的分母；
+统计页在 output 卡片上标出「N 条未计量」。
+
+**P0-2 请求数/耗时分母对账**
+审计属实：`accumulate()` 把降级排除在 `requests` 外，`buildSeries()` 却对
+每条记录 `requests += 1`，于是分桶之和 ≠ 汇总。现在两层都拆成：
+`attempts = requests + degraded`；`series` 新增 `attempts / degraded /
+degradedDurationMs`，`durationMs` 只累计已回答请求，`outputTokens` 同样跳过
+未知值。测试钉住「分桶 attempts 之和 = totals.attempts」「duration 两侧同口径」。
+
+**P0-3 匿名统计改报「上一完整自然日」**
+审计属实：启动时只取「今天到目前为止」，随后全天决策不再更新；服务端又按
+收到日期归档。现在：
+- 客户端聚合昨天 00:00–今天 00:00 的完整计数，并在 payload 里带
+  `day: YYYY-MM-DD`；
+- 每 6 小时检查一次（`unref` 定时器），跨日后补报刚结束的那一天；
+- `decideKind` 仍按「今天是否已上报」去重，同一天不会重发；
+- 服务端只接受最近 7 天且不晚于今天的 `day`，否则退回收到时间（防伪造历史）。
+
+**P1-1 删除查询区间均值插补**
+审计属实：历史缓存命中缺基线时用「同查询区间、同 provider/model 的均值」
+补齐，会带来样本异质性、时间泄漏与不可加（S(A∪B)≠S(A)+S(B)）。现在只使用
+写入时持久化的精确基线；缺基线的历史命中不计入节省，单独上报
+`estimatedBaselineMissing`，统计页明确写出「N 条未计入（不再插补）」。
+
+**P1-2 节省量的口径**
+`savedRatio` 字段名保留（已落盘/已下发），但界面改称「决策请求估算节省率」，
+并新增 `savedRatioScope: "decision_request"` 与口径说明：只覆盖缓存去重与
+输入处理，不含主 Agent、子代理、工具调用、上下文压缩；完整净节省需要
+同任务配对 A/B，未实现。
+
+**P1-3 安全裁决与流程优化分账**
+`authorize` 的 reject 才是安全拒绝；`retrieval.skip` / `skillPick.redirect`
+等是流程优化。新增 `safety: { point: "authorize", allow, ask, reject,
+otherPointRejects }`，统计页脚注只把 authorize 的 reject 算作拦截率。
+
+**未做**：概率校准测试集（需要独立人工标签与样本，仓库没有；现有
+`calibrated_p_unsafe` 保持 unknown 是正确姿态）、配对 A/B 端到端成本
+（需要真实任务与受控基线）、多进程交错微基准（属于 benchmark 方法学，
+不是产品缺陷）。平均耗时仍只有均值，P50/P95 需要保存分布，留待后续。
+
+
 ## DEC-074 匿名统计说清用途、连通性测试前移并覆盖回退模型（2026-11-15）
 
 **1. 匿名统计的语义**

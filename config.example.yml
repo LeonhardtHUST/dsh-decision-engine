@@ -424,7 +424,8 @@ guardFallbackReasoningEffort: ""
 #
 #   off      完全关闭：一个请求都不发
 #   install  仅首次运行上报一次「装了」，之后不再联网
-#   daily    每天上报一次，附带当日决策数（默认）
+#   daily    每天上报一次**上一完整自然日**的决策数（默认；跨日由 6 小时一次
+#            的检查补报，长驻进程不会漏掉）
 #
 # telemetryLevel: daily
 # telemetryEndpoint: ""     # 留空用内置端点

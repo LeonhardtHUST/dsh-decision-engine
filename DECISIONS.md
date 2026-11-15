@@ -2,6 +2,47 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-076 审批不可用时的误拒、判定记忆与 reasonCode 稳定化（2026-11-15）
+
+对照本地审批日志审计（`docs/audits/2026-11-15-approval-log-audit.md`）修
+P0-1/2/3；P0-4 与 P1 的取舍见末尾。
+
+**P0-1 本地已判 safe 的调用不再被模型一票否决**
+1.13.0 的 25 次 deny 里 10 次落在 `mandatory=safe` 的 write/edit：本地规则
+已确认工作区内、有沙箱边界，却被模型 medium/high 意见升成 ask，`never`
+下再变 deny。现在 `approvalPolicy=never` 时：
+- `mandatory=safe` → 直接 `delegate`（交宿主沙箱，reasonCode
+  `safe-local-operation-host-sandbox`），不再调用第二模型；
+- 其它（unknown / 非 safe）→ 交给用户配置的 `guardFallback` 做唯一裁决；
+  回退未配置、失败或超时仍 deny（fail-closed）。
+强制约束（`requires_approval` / `deny`）仍在模型之前返回，不受影响。
+
+**P0-2 短窗判定记忆**
+对 `(sessionId, tool, argsHash)` 在 120 秒内复用首次结论（仅
+`approvalAvailable === false` 时启用；有审批通道时可能带着新批准，不能
+复用）。审计记录的 `reused: true` 可区分「复用」与「重新判定」。这样同
+参数重试不会得到相反答案，也省掉一次模型调用。
+
+**P0-3 reasonCode 稳定化**
+此前档位 note（`tolerance=relaxed（严重度 0.680 ≥ 0.600…）`）被直接当
+`reason`，`reasonCode` 于是出现 61 种中文长句。现在：
+- 档位改变判断时使用固定枚举：`tolerance-ask` / `tolerance-delegate` /
+  `tolerance-deny`；note 只进 `humanReason`（审计/明细/遥测 detail）；
+- `guardOutcomeMessage` 遇到不在文案表里的 `reason` 时，一律回落
+  `unclassified`，原文进 `humanReason`，绝不把中文长句写进机器字段。
+
+**未做（附理由）**
+- P0-4 `hostFinalAction`：现有契约刻意规定「工具返回成功 ≠ 宿主批准」
+  （`guard-audit` 测试钉住），不能在 `tools/result` 里按 `isError===false`
+  反推 allow；要准确回填需要宿主暴露最终权限裁决，目前没有该 API。
+  `pluginVersion` 需要同时改明细/遥测/统计三处 schema 与迁移，留给单独
+  一次改动。
+- P1 回退预算：跨阶段 10s 硬预算需要 primary 与 fallback 共享 deadline，
+  会改请求重试语义；本次只修拒绝路径，不在同一提交里动延迟预算。
+- P1 观测口径合并（defer_to_host vs action、一次调用两条遥测）与缓存
+  白名单属于数据模型调整，需先决定统一 schema，避免边改边漂。
+
+
 ## DEC-075 统计账本：未知值、分母对账、缓存基线与安全口径（2026-11-15）
 
 对照 v1.13.0 的统计/概率审计，逐条核对源码后修了 P0 三项与 P1 三项；

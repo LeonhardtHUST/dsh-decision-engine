@@ -407,6 +407,8 @@ guardFallbackReasoningEffort: ""
 # 本次调用的宿主 allowed-once，没有审批通道时拒绝，模型不能代批。
 # autonomous 也不是「关掉审查」：在宿主 auto 审查或本档下，软性 ask 会交给
 # 上面的 guardFallback 裁决（失败即拒绝），因此它可能比 default 更严。
+# 审批通道为 never 时：mandatory=safe 的调用直接交宿主沙箱；其它 ask 交给
+# guardFallback（未配置/失败仍拒绝）。强制 requires_approval / deny 不变。
 # severity 是排序分数，分位数就绪不代表危险概率已校准；冷启动比校准后更安静。
 # tolerance: default
 

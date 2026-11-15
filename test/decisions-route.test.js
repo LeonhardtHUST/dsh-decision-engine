@@ -425,33 +425,30 @@ test("已退役的 decisionsCapture 不再是一个可写配置（PUT 只带它�
 
 // ------------------------------------------------------------------ 同批修的既有缺陷
 
-test("匿名统计档位能保存（此前点了「off」不落盘）", async () => {
+test("匿名统计已退役：仅提交旧配置键应拒绝且不落盘", async () => {
   const { home, routes } = setup();
   try {
-    // 1997 行的白名单与 configPatchOf 都漏了 telemetryLevel，于是这个下拉
-    // 能点、能显示「已保存」，值却从来没落盘——用户以为关掉了统计，实际
-    // 每天照发。隐私开关静默失效必须拦住。
-    const res = await routes["/api/decision-engine/config"].fetch({
-      method: "PUT",
-      text: async () => JSON.stringify({ telemetryLevel: "off" }),
-    });
-    assert.equal(res.status, 200, `保存匿名统计档位应成功：${JSON.stringify(await res.clone().json())}`);
-    const payload = await res.json();
-    assert.equal(payload.telemetryLevel, "off", "保存后应回显新档位");
-
-    const raw = readFileSync(join(home, "dsh-decision-engine", "config.yml"), "utf8");
-    assert.ok(raw.includes("telemetryLevel: off"), `配置内容：${raw}`);
+    for (const patch of [{ telemetryLevel: "daily" }, { telemetryEndpoint: "https://analytics.invalid/collect" }]) {
+      const res = await routes["/api/decision-engine/config"].fetch({
+        method: "PUT",
+        text: async () => JSON.stringify(patch),
+      });
+      assert.equal(res.status, 400);
+      assert.match((await res.json()).error, /no updatable fields/);
+    }
+    assert.equal(existsSync(join(home, "dsh-decision-engine", "config.yml")), false);
   } finally {
     cleanupDir(home);
   }
 });
 
-test("状态接口回显匿名统计档位（此前永远显示兜底值）", async () => {
+test("状态接口不再提供匿名统计配置", async () => {
   const { home, routes } = setup();
   try {
     const { data } = await get(routes, "/api/decision-engine/status");
-    assert.equal(typeof data.telemetryLevel, "string", "应回报当前档位");
-    assert.deepEqual(data.telemetryLevels, ["off", "install", "daily"], "可选档位也下发");
+    for (const key of ["telemetryLevel", "telemetryLevels", "telemetryEndpoint"]) {
+      assert.equal(Object.hasOwn(data, key), false, key);
+    }
   } finally {
     cleanupDir(home);
   }

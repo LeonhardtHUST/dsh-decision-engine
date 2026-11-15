@@ -27,7 +27,7 @@ function fixture({ sandbox = "workspace-write", approval = "never", withFilesyst
   };
   const configDir = join(home, "dsh-decision-engine");
   mkdirSync(configDir);
-  writeFileSync(join(configDir, "config.yml"), "enabled: true\nmode: enforce\npointAuthorize: enforce\nprovider: bamboonode\nbamboonodeApiKey: sk-fixture-only-00000\nkeyStorage: config\ntelemetryLevel: off\ndecisionsTabEnabled: false\n");
+  writeFileSync(join(configDir, "config.yml"), "enabled: true\nmode: enforce\npointAuthorize: enforce\nprovider: bamboonode\nbamboonodeApiKey: sk-fixture-only-00000\nkeyStorage: config\ndecisionsTabEnabled: false\n");
   const ctx = { logger: { info() {}, warn() {}, debug() {} }, get: (name) => services[name], on(name, listener) { const list = hooks.get(name) ?? []; list.push(listener); hooks.set(name, list); return () => {}; }, inject(_names, callback) { callback(); }, plugin() {}, effect() {} };
   apply(ctx, {});
   const session = { id: "fixture-session", header: { cwd: root }, snapshotEvents: () => [] };

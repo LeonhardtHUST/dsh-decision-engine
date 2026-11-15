@@ -1,6 +1,6 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.15.0`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.15.1`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
@@ -9,7 +9,8 @@
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
 - `.github/workflows/publish.yml`：每次 `main` push 自动检测版本。先比较整个 push 的 `before` 与当前 manifest，拒绝错误包名、非法或倒退版本；再只读查询 npmjs。当前版本已上传则跳过；当前版本高于 npmjs latest 且未上传则进入完整验证及发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
 - 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
-- 当前 `1.15.0` 包含 DEC-076：审批通道为 `never` 时，`mandatory=safe` 调用交宿主沙箱、非 safe 的 ask 交回退裁决（不再被模型一票否决）；同会话同参 120 秒内复用首次裁决；`reasonCode` 稳定枚举化（档位 note 只进 humanReason）。`1.14.0` 的 DEC-075、`1.13.0` 的 DEC-074、`1.12.0` 的 DEC-072/073、`1.11.2` 的 never 回退、`1.11.1` 的 DEC-070、`1.11.0` 的审计修复、`1.10.0` 的五项改动依次见 DEC-062 ~ DEC-075。
+- 当前 `1.15.1` 包含 DEC-077/078：彻底移除匿名统计控件、安装 ID、心跳上报及网站采集/日报链路，保留本地决策历史与统计；强制审批区分策略禁止和通道不可用，直接给出双语停止重试指引与独立错误码，删除与提权提示分开，不降低原生审批权限边界。
+- `1.15.0` 包含 DEC-076：审批通道为 `never` 时，`mandatory=safe` 调用交宿主沙箱、非 safe 的 ask 交回退裁决（不再被模型一票否决）；同会话同参 120 秒内复用首次裁决；`reasonCode` 稳定枚举化（档位 note 只进 humanReason）。`1.14.0` 的 DEC-075、`1.13.0` 的 DEC-074、`1.12.0` 的 DEC-072/073、`1.11.2` 的 never 回退、`1.11.1` 的 DEC-070、`1.11.0` 的审计修复、`1.10.0` 的五项改动依次见 DEC-062 ~ DEC-075。
 - checkout 与 setup-vp Action 固定到已核对的 commit SHA；不通过 `pull_request_target` 运行不可信 PR。
 - 验证任务只有 `contents: read`；只有发布 job 有 `id-token: write`。发布 step 只使用 OIDC（trusted publishing），不再读取任何 npm token secret。代码 checkout 不保留 Git 凭据。此工作流不会自动修改版本、提交源码或推送 Git。
 
@@ -49,7 +50,7 @@ vp run verify:release
 
 `verify:package` 读取真正的 gzip/tar，检查 manifest、scoped 模块 id、bundle 引用、全部安全模块、locale、图表资源和相对 import。配置、凭据、日志、测试目录等不能进入包。输出文件数、大小和 SHA-512 integrity。
 
-Windows 全量测试最近仍有 3 个既有 POSIX 文件权限断言失败；旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机专测通过不等同于 CI 发布成功。
+本次 Windows 全量 1155 项测试通过；工作区沙箱下测试运行器的子进程管道会报 `spawn EPERM`，需要仅为原测试命令申请一次更宽权限，不改全局设置。旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机验证通过不等同于 CI 发布成功。
 
 ## 手动发布相同的已验证 tarball
 
@@ -58,7 +59,7 @@ Windows 全量测试最近仍有 3 个既有 POSIX 文件权限断言失败；�
 授权及完整验证均满足后：
 
 ```powershell
-npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.15.0.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.15.1.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
@@ -66,4 +67,4 @@ npm view @leonhardthust/dsh-decision-engine version --registry "https://registry
 
 ## 安装
 
-DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.15.0`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
+DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.15.1`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。

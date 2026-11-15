@@ -14,6 +14,10 @@ Published fork: **`@leonhardthust/dsh-decision-engine`**. Based on the MIT-licen
 A judgement layer for DeepSeek Harness: a cheap decision model judges before the
 main model acts.
 
+## Privacy
+
+This fork no longer includes anonymous usage reporting: no install IDs, installation events, or daily heartbeats are generated, and legacy `analytics.json` files are not read or updated. The old `telemetryLevel` / `telemetryEndpoint` settings have no effect. Local decision history and statistics remain available; user-configured decision-provider calls and the opt-in free-model configuration endpoint are unchanged.
+
 ## Features
 
 **Eight decision points**

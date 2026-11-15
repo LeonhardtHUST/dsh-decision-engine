@@ -11,7 +11,7 @@ function fixture() {
   process.env.DSH_HOME = home;
   mkdirSync(join(home, "dsh-decision-engine"));
   const configPath = join(home, "dsh-decision-engine", "config.yml");
-  writeFileSync(configPath, "enabled: false\ntelemetryLevel: off\n");
+  writeFileSync(configPath, "enabled: false\n");
   const routes = new Map();
   const llm = { listProviders: () => [{ id: "fixture", name: "Fixture" }], listModels: async () => [{ id: "model", name: "Review" }], resolveModelInfo: async () => ({ reasoning: { efforts: [{ id: "medium", name: "Medium" }] } }) };
   const services = { llm, connection: { fetch: { register: (route) => routes.set(route.path, route) } } };

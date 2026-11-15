@@ -37,11 +37,11 @@ site/
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
-| POST | `/api/e` | 匿名使用统计心跳（DEC-020/021）：校验后 202，写入放进 `ctx.waitUntil` |
-| POST | `/api/digest` | 手工触发日报（需 `x-digest-key` 与 `DIGEST_KEY` 一致；未配 secret 即 404） |
 | GET | `/api/provider-config` | 下发插件的 provider 配置（DEC-030，见下节） |
 
-其余 `/api/*` 一律 404。
+其余 `/api/*` 一律 404。匿名心跳 `/api/e`、日报 `/api/digest`、D1 绑定与定时推送已移除。
+站点不再收集安装标识或用量，也不再拉取 npm 下载统计或发送 Bark 日报。
+此变更需要重新部署 Worker 才会在线上生效；既有远程数据库与 secrets 不会被本地代码修改自动删除。
 
 ## 服务端下发 provider 配置（DEC-030）
 

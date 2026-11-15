@@ -1691,7 +1691,7 @@ test("配置页分成四个可折叠分组，顺序与标题固定（DEC-051）"
     ["connection", "连接方式", "business"],
     ["guard", "守卫行为", "warn"],
     ["record", "记录与展示", "success"],
-    // 第四组从「模型与统计」收敛成「高级」：思考模式 / 匿名统计都是设一次
+    // 第四组从「模型与统计」收敛成「高级」：思考模式是设一次
     // 就忘的调优项，收进「高级」比单独占一个语义很窄的标题更好懂。
     ["model", "高级", "neutral"],
   ];
@@ -1768,7 +1768,7 @@ test("每一项都归属正确的那一组（断言父子关系，不是「页�
     // T3：在「决策历史」之后新增日志分文件 / 保留（默认 date 模式还有分隔符）。
     record: ["决策历史", "日志分文件", "日期分隔符", "日志保留", "审批卡正文可读化"],
     // T2：由「思考模式」改名为「决策模型思考」。
-    model: ["决策模型思考", "匿名使用统计"],
+    model: ["决策模型思考"],
   };
 
   for (const [id, labels] of Object.entries(EXPECTED)) {
@@ -3377,7 +3377,6 @@ function draftWith(over = {}) {
     enabled: true,
     mode: "enforce",
     thinkMode: "never",
-    telemetryLevel: "daily",
     decisionsTabEnabled: true,
     approvalDetailReadable: true,
     serverProvider: false,
@@ -3866,14 +3865,38 @@ test("非百炼 provider 不显示 Workspace / 地域两格", async () => {
   assert.equal(text.includes("Workspace ID"), false);
 });
 
-test("匿名使用统计：说清用途、上报字段与不包含什么（T4）", async () => {
-  const { tree } = await render(stateWith({}));
-  const text = textsOf(tree).join("\n");
-  assert.ok(text.includes("匿名使用统计"), "标题应明确是「使用统计」");
-  assert.ok(text.includes("值不值得继续维护"), "应说明它存在的目的（作者判断是否继续维护）");
-  assert.ok(text.includes("随机安装 ID"), "应列出上报字段");
-  assert.ok(text.includes("不含会话内容"), "应明确不包含的内容");
-  assert.ok(text.includes("off（完全关闭）"), "off 档应说明是完全关闭");
+test("匿名统计已移除：首屏、缺省状态和旧草稿均不显示上报控件", async () => {
+  for (const level of [undefined, "off", "install", "daily"]) {
+    const state = stateWith({ telemetryLevel: level, telemetryLevels: ["off", "install", "daily"] });
+    for (const slots of [{}, { 5: draftWith({ telemetryLevel: level }) }]) {
+      const { text, controls } = await render(state, { slots });
+      assert.equal(text.includes("匿名使用统计"), false);
+      assert.equal(text.includes("随机安装 ID"), false);
+      assert.equal(controls.some((control) => collectText(control).join("").includes("daily（")), false);
+    }
+  }
+  const { text } = await render(null);
+  assert.equal(text.includes("匿名使用统计"), false);
+});
+
+test("保存其他选项不会重新启用旧匿名统计档位", async (context) => {
+  for (const level of ["off", "daily"]) {
+    const { tree } = await render(stateWith({ telemetryLevel: level }));
+    const mode = findNode(tree, (item) => item.type === "select" && item.props.value === "never");
+    assert.ok(mode !== null);
+    const calls = [];
+    context.mock.method(globalThis, "fetch", async (url, init) => {
+      calls.push({ url: String(url), init });
+      return { ok: true, json: async () => stateWith({ thinkMode: "auto" }) };
+    });
+    await mode.props.onChange({ target: { value: "auto" } });
+    const saved = calls.find((call) => call.init?.method === "PUT" && call.url.includes("/config"));
+    assert.ok(saved !== undefined, "应保存思考模式");
+    const patch = JSON.parse(saved.init.body);
+    assert.equal(patch.thinkMode, "auto");
+    assert.equal(Object.hasOwn(patch, "telemetryLevel"), false);
+    assert.equal(Object.hasOwn(patch, "telemetryEndpoint"), false);
+  }
 });
 
 test("连通性测试在模型配置区，且按钮与说明都在同一行（T4）", async () => {

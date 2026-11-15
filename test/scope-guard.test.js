@@ -73,13 +73,28 @@ test("人工审批可用时required返回ask，不由模型代批", async () => 
   } finally { env.cleanup(); }
 });
 
-test("多目标patch和未解析shell不再凭宿主一定兜底而放行", async () => {
+test("多目标patch仍要求权限，未解析shell按主模型低风险结论放行", async () => {
   const env = fixture();
   try {
+    // 多目标补丁里有一个目标在写根之外：mandatory 在模型之前就拦下，行为不变。
     const patch = `*** Begin Patch\n*** Add File: ${join(env.root, "inside.txt")}\n+fixture\n*** Add File: ${join(env.root, "..", "outside.txt")}\n+fixture\n*** End Patch`;
     assert.equal((await env.run("apply_patch", { input: patch })).decision.kind, "deny");
     assert.equal(env.calls.length, 0);
-    assert.equal((await env.run("pwsh", { command: "node arbitrary-script.js" })).decision.kind, "deny");
+    /**
+     * 未解析的本地 shell（effect=unknown ⇒ mandatory=unknown）不再二次复核。
+     *
+     * 这条断言在 1.10.0 之前是 `deny`：那时 `mandatory=unknown` 在 auto 预设下
+     * 无条件触发回退审查，而这个 fixture 没有 llm 服务，回退不可用 → 闭锁。
+     * 也就是说，一条主模型判为低风险的普通脚本，会因为「回退环节恰好没配」
+     * 而被拒绝——这正是用户报告的「决策模型定不了论就回退」的代价。
+     *
+     * 现在：主模型给出有效低风险 delegate、档位没有升级询问、回退策略只是
+     * 再叫一次模型（session/model），就不必为了 unknown 再跑一次。宿主权限
+     * 检查照旧；写根之外的补丁仍在上面被 mandatory 拦下。
+     */
+    const shell = await env.run("pwsh", { command: "node arbitrary-script.js" });
+    assert.equal(shell.decision.kind, "allow");
+    assert.equal(shell.released, true);
     assert.equal(env.calls.length, 1);
   } finally { env.cleanup(); }
 });

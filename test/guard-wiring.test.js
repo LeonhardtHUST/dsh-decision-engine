@@ -97,3 +97,49 @@ test("host reported-success与插件返回defer分开，不能伪装副作用已
     assert.doesNotMatch(JSON.stringify(final), /Only edit fixture|user approved everything/);
   } finally { await env.cleanup(); }
 });
+
+test("auto下本地未知副作用的低风险放行只走主模型，不再为mandatory=unknown二次复核", async () => {
+  // pwsh 的命令内容无法静态判定（effect.kind=unknown, known=false），mandatory 因此
+  // 是 unknown；但主模型给出了有效低风险意见、档位也没升级询问。此时回退一次意味着
+  // 每条本地命令稳定多花一次模型调用——这正是要去掉的冗余。
+  const env = await fixture({ choice: "low" });
+  try {
+    const { decision } = await env.run("pwsh", { command: "node fixture.js" });
+    assert.equal(decision.kind, "allow");
+    assert.equal(env.modelCalls, 1);
+    assert.equal(env.fallbackCalls, 0);
+    assert.equal(env.records[0].audit.mandatory.status, "unknown", "不确定性仍照实记录");
+    assert.equal(env.records[0].audit.decisionSource, "primary_model");
+    assert.equal(env.records[0].audit.pluginReturnedAction, "defer_to_host");
+    assert.equal(env.sideEffects, 1);
+  } finally { await env.cleanup(); }
+});
+
+test("显式deny回退策略不被本地未知豁免绕过", async () => {
+  // 豁免只针对「再叫一个模型复核」（session / model）。显式 deny 是用户写下的
+  // 政策裁决：它不需要模型调用，但结论必须照旧生效，否则豁免就成了绕过开关。
+  const env = await fixture({ choice: "low", config: { guardFallback: "deny" } });
+  try {
+    const { decision, exec } = await env.run("pwsh", { command: "node fixture.js" });
+    assert.equal(decision.kind, "deny");
+    assert.equal(env.fallbackCalls, 0, "deny 策略本身不需要模型调用");
+    assert.equal(env.records[0].audit.decisionSource, "fallback_policy");
+    assert.equal(env.records[0].audit.mandatory.status, "unknown");
+    assert.equal(env.sideEffects, 0);
+    assert.ok(env.guard(exec), "下游仍须拒绝：策略拒绝不是放行");
+  } finally { await env.cleanup(); }
+});
+
+test("中风险ask仍二次复核，本地未知豁免不覆盖软性询问", async () => {
+  // 模型判 medium → baseAction=ask。ask 是「需要再看一眼」的软性判断，与
+  // 「静态规则不知道副作用」是两件事，豁免不能把它一起省掉。
+  const env = await fixture({ choice: "medium" });
+  try {
+    const { decision } = await env.run("pwsh", { command: "node fixture.js" });
+    assert.equal(decision.kind, "allow");
+    assert.equal(env.modelCalls, 1);
+    assert.equal(env.fallbackCalls, 1, "medium 仍需独立复核");
+    assert.equal(env.records[0].audit.baseAction, "ask");
+    assert.equal(env.records[0].audit.decisionSource, "fallback_model");
+  } finally { await env.cleanup(); }
+});

@@ -7,9 +7,15 @@ import { TOLERANCE_LEVELS, ToleranceCalibrator } from "../lib/tolerance.js";
 import { createGuardFixture } from "./helpers/guard-fixture.js";
 
 const userListing = "Get-ChildItem -Recurse -File lib | Select-Object -First 80 FullName | ForEach-Object { $_.FullName.Replace('D:\\Projects\\GitHub\\dsh-decision-engine\\','') }";
-const opaqueCalls = [
+// 本地未知副作用：`pwsh` 的命令内容与未注册工具都无法静态判定，但它们的作用域
+// 仍在本机。主模型给出有效的低风险意见后，不再为 `mandatory=unknown` 二次复核。
+const localUnknownCalls = [
   ["pwsh", { command: userListing }],
   ["unrecognized_fixture_tool", { query: "fixture" }],
+];
+// 外网 / MCP 的副作用边界在宿主之外：第二次独立复核是刻意保留的安全余量，
+// 不能被上面那条豁免覆盖（effect.kind 是 external_network 而不是 unknown）。
+const externalCalls = [
   ["mcp__fixture__read", { query: "fixture" }],
   ["web_fetch", { url: "https://example.invalid/fixture" }],
 ];
@@ -44,7 +50,7 @@ async function createReviewFixture(options = {}) {
         if (options.throwPrimary) throw new Error("fixture-primary-failed");
         if (options.degraded) return { degraded: "fixture-timeout", provider: "primary-fixture", model: "decision-model" };
         return { provider: "primary-fixture", model: "decision-model", answers: {
-          risk: { type: "choice", choice: options.choice ?? "low", confidence: 0.9 },
+          risk: { type: "choice", choice: options.choice ?? "low", confidence: 0.9, ...(options.probabilities === undefined ? {} : { probabilities: options.probabilities }) },
           irreversible: { type: "noul", noul: 0.05 },
           matches_task: { type: "noul", noul: 0.99 },
           injection_suspect: { type: "noul", noul: 0.01 },
@@ -66,13 +72,34 @@ async function createReviewFixture(options = {}) {
   };
 }
 
-for (const [toolName, args] of opaqueCalls) {
-  test(`Auto reviews opaque ${toolName} twice even when primary says low`, async () => {
+for (const [toolName, args] of localUnknownCalls) {
+  test(`Auto keeps local unknown ${toolName} on the primary decision without a second review`, async () => {
     const fixture = await createReviewFixture();
     try {
       const { decision } = await fixture.run(toolName, args);
       assert.equal(fixture.classified.length, 1, "uncertainty must reach primary classification");
-      assert.equal(fixture.reviews.length, 1, "opaque low is not a direct allow");
+      assert.equal(fixture.reviews.length, 0, "本地未知副作用不再为 mandatory=unknown 二次复核");
+      assert.equal(fixture.records[0].audit.mandatory.status, "unknown", "mandatory 仍是 unknown：不确定性照旧记录，只是不单独升级");
+      assert.equal(decision.kind, "allow");
+      assert.equal(fixture.sideEffects, 1);
+      assert.equal(fixture.details[0].scores.decisionSource, "primary_model");
+      assert.equal(fixture.details[0].scores.modelEvaluation.primary.status, "completed");
+      assert.equal(fixture.details[0].scores.modelEvaluation.primary.provider, "primary-fixture");
+      assert.equal(fixture.details[0].scores.modelEvaluation.fallback.status, "not_requested");
+      assert.equal(fixture.details[0].result.provider, "primary-fixture");
+      assert.equal(fixture.details[0].result.model, "decision-model");
+      assert.match(fixture.details[0].state.summary.sha256, /^[a-f0-9]{64}$/);
+    } finally { await fixture.cleanup(); }
+  });
+}
+
+for (const [toolName, args] of externalCalls) {
+  test(`Auto reviews external ${toolName} twice even when primary says low`, async () => {
+    const fixture = await createReviewFixture();
+    try {
+      const { decision } = await fixture.run(toolName, args);
+      assert.equal(fixture.classified.length, 1, "uncertainty must reach primary classification");
+      assert.equal(fixture.reviews.length, 1, "外部边界仍保留第二次独立复核");
       assert.equal(fixture.records[0].audit.mandatory.status, "unknown");
       assert.equal(decision.kind, "allow");
       assert.equal(fixture.sideEffects, 1);
@@ -131,16 +158,19 @@ for (const failure of [{ degraded: true }, { throwPrimary: true }]) {
 }
 
 for (const failure of [{ throwFallback: true }, { fallbackText: "not a decision" }]) {
-  test(`Auto opaque low fails closed on ${failure.throwFallback ? "LLM failure" : "invalid review"}`, async () => {
+  // 用 external_network 的 MCP 工具：它会走到第二次独立复核，失败时仍然闭锁。
+  // 本地未知副作用在没有强制约束时不再二次复核，因此不能再拿它验证「回退失败闭锁」。
+  test(`Auto external ${failure.throwFallback ? "LLM failure" : "invalid review"} still fails closed`, async () => {
     const fixture = await createReviewFixture(failure);
     try {
-      const { decision } = await fixture.run("unrecognized_fixture_tool", {});
+      const { decision } = await fixture.run("mcp__fixture__read", { query: "fixture" });
       assert.equal(fixture.classified.length, 1);
       assert.equal(fixture.reviews.length, 1);
       assert.equal(decision.kind, "deny");
       assert.equal(fixture.sideEffects, 0);
       assert.match(decision.reason, /[\u4e00-\u9fff]/u);
       assert.equal(fixture.details[0].scores.modelEvaluation.fallback.status, "failed");
+      assert.equal(fixture.details[0].scores.decisionSource, "fallback_model");
     } finally { await fixture.cleanup(); }
   });
 }
@@ -160,9 +190,10 @@ for (const reviewAction of ["allow", "deny"]) {
 }
 
 test("custom fallback model is the actual final judge without losing primary provenance", async () => {
+  // external_network：仍会二次复核，因此能用它验证自定义回退路由真的被用上。
   const fixture = await createReviewFixture({ config: { guardFallback: "model", guardFallbackProvider: "custom-reviewer", guardFallbackModel: "custom-model", guardFallbackReasoningEffort: "low" } });
   try {
-    const { decision } = await fixture.run("unrecognized_fixture_tool", {});
+    const { decision } = await fixture.run("mcp__fixture__read", { query: "fixture" });
     assert.equal(decision.kind, "allow");
     assert.equal(fixture.reviews.length, 1);
     assert.equal(fixture.reviews[0].provider, "custom-reviewer");
@@ -191,6 +222,8 @@ for (const approval of ["ask", "never"]) {
 
 for (const fallback of ["allow", "deny"]) {
   test(`explicit ${fallback} fallback only chooses the soft uncertainty outcome`, async () => {
+    // 显式 allow / deny 是用户写下的政策裁决，不属于「本地未知副作用」豁免范围：
+    // 这两种策略都不需要多叫一次模型，但它们的结论必须照旧生效。
     const fixture = await createReviewFixture({ config: { guardFallback: fallback } });
     try {
       const { decision } = await fixture.run("unrecognized_fixture_tool", {});
@@ -204,6 +237,30 @@ for (const fallback of ["allow", "deny"]) {
     } finally { await fixture.cleanup(); }
   });
 }
+
+test("tolerance 触发的 ask 带双语审批卡标题，档位原文只留在审计", async () => {
+  // 构造「relaxed 档按严重度尾部提问、而模型本身判低风险」的情形：
+  // choice=low 让 baseAction=delegate，probabilities 让 severity 达线（0.8 ≥ 0.6），
+  // 于是这次询问是**档位**要求的，不是模型要求的。
+  const fixture = await createReviewFixture({ preset: "manual", approval: "ask", config: { tolerance: "relaxed" }, probabilities: { low: 0.05, medium: 0.3, high: 0.65 } });
+  try {
+    const { decision } = await fixture.run("mcp__fixture__read", { query: "fixture" });
+    assert.equal(decision.kind, "ask");
+    assert.equal(fixture.records[0].audit.baseAction, "delegate", "模型本身判定可放行（delegate），询问来自档位");
+    assert.equal(fixture.records[0].audit.tolerance.changed, true);
+    // 审批卡标题：固定双语文案，不含档位 note 里的字段名与裸小数。
+    assert.equal(decision.displayReason.zh, "安全档位要求确认此次调用");
+    assert.equal(decision.displayReason.en, "The safety level asks for confirmation");
+    for (const text of [decision.displayReason.zh, decision.displayReason.en]) {
+      assert.doesNotMatch(text, /severity=|tolerance=|cutoff=|\d\.\d/);
+    }
+    // 审计/遥测口径不变：reasonCode 指认来源，note 逐字保留在 humanReason。
+    assert.equal(fixture.records[0].audit.reasonCode, "tolerance-ask");
+    assert.match(fixture.records[0].audit.humanReason, /tolerance=relaxed/);
+    assert.equal(fixture.details[0].scores.reasonCode, "tolerance-ask");
+    assert.match(fixture.details[0].detail, /tolerance=relaxed/);
+  } finally { await fixture.cleanup(); }
+});
 
 const hardCases = [
   { label: "explicit sandbox escalation", name: "pwsh", args: { command: userListing, sandbox_permissions: "danger-full-access" } },
@@ -247,6 +304,8 @@ for (const [toolName, args] of [
   ["cordis_inspect_list", {}],
   ["cordis_inspect_query", { platform: "host", provider: "fixture", method: "schema", input: {} }],
   ["list_subagent_models", { provider: "fixture", model: "review-model" }],
+  // job_output 是严格的只读查询：一条「读一下后台任务输出」不该先花一次模型调用。
+  ["job_output", { job_id: "fixture-job", wait: true, timeout_ms: 5000 }],
 ]) {
   test(`known safe ${toolName} skips both models without inventing facts or questions`, async () => {
     const fixture = await createReviewFixture({ approval: "never", choice: "high" });

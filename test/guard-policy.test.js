@@ -37,6 +37,28 @@ test("known local reads remain safe while opaque tools require uncertainty revie
   assert.equal(policy("mcp__unknown__read", {}).status, "unknown");
 });
 
+test("job_output only counts as a known read under the exact query contract", () => {
+  // 严格契约：job_id 必填字符串、wait 布尔、timeout_ms 有限数。
+  assert.equal(policy("job_output", { job_id: "job-1" }).status, "safe");
+  assert.equal(policy("job_output", { job_id: "job-1", wait: true, timeout_ms: 5000 }).status, "safe");
+  assert.equal(policy("job_output", { job_id: "job-1", wait: false, timeout_ms: 0 }).status, "safe");
+  const effect = classifyToolEffect({ toolName: "job_output", args: { job_id: "job-1" } });
+  assert.equal(effect.kind, "read_local");
+  assert.equal(effect.known, true);
+  assert.equal(effect.highImpact, false);
+  assert.equal(effect.recoverability, "no-mutation");
+  // 形状一旦不匹配就不再是「已知只读」：退回 unknown 让模型复核，绝不凭工具名放行。
+  assert.equal(policy("job_output", {}).status, "unknown");
+  assert.equal(policy("job_output", { job_id: 42 }).status, "unknown");
+  assert.equal(policy("job_output", { job_id: "job-1", wait: "true" }).status, "unknown");
+  assert.equal(policy("job_output", { job_id: "job-1", timeout_ms: "5000" }).status, "unknown");
+  assert.equal(policy("job_output", { job_id: "job-1", timeout_ms: Number.POSITIVE_INFINITY }).status, "unknown");
+  assert.equal(policy("job_output", { job_id: "job-1", timeout_ms: Number.NaN }).status, "unknown");
+  assert.equal(policy("job_output", { job_id: "job-1", command: "fixture" }).status, "unknown");
+  // 权限升级字段仍然优先于任何只读契约。
+  assert.equal(policy("job_output", { job_id: "job-1", sandbox_permissions: "danger-full-access" }).status, "requires_approval");
+});
+
 test("team task state and todo bookkeeping do not self-lock", () => {
   const context = { sandboxMode: "read-only", approvalAvailable: false };
   assert.equal(policy("team_task_update", { task_id: "fixture-task", expected_revision: 2, action: "complete" }, context).status, "safe");

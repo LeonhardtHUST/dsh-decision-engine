@@ -2,17 +2,22 @@
  * 人工审核比例（tolerance）的纯函数单测 —— 对应 DEC-033。
  *
  * 这个功能的全部价值在一条契约上：**设定是模型无关的**。也就是说，
- * 「轻松 = 只问最前 1%」这个语义在任何决策模型上都成立，而实现它的手段
+ * 「少问 = 只问严重度最前 1%」这个语义在任何决策模型上都成立，而实现它的手段
  * 是「按该模型最近的分位数换算阈值」，不是任何固定分数。
  *
  * 因此这里把住六条：
  *
  *   1. 默认档**逐字**等于现有行为（升级不改变任何东西）；
- *   2. 自治档从不 ask，但**绝不**取消 deny（那不是打扰，是安全边界）；
- *   3. 轻松档 = 只问最前 1%（分位带），**替换**默认判断而不是叠加；
- *   4. 谨慎档 = 默认判断 ∪ 最前 25%，因此一定 ≥ 默认；
+ *   2. 不问档只消除软性 ask：强制审批（`mandatory=requires_approval`）照旧会问，
+ *      deny 更不会被取消（那不是打扰，是安全边界）；
+ *   3. 少问档 = 只问严重度尾部（校准后最前 1%、冷启动固定分 0.60），
+ *      **替换**默认判断而不是叠加，因此与默认判断是**双向**差异而不是子集；
+ *   4. 多问档 = 默认判断 ∪ 最前 25%，因此逐调用一定 ⊇ 默认；
  *   5. 严重度把三类危险情况排到最前，且安全下限生效；
  *   6. 校准器按 provider × model 分桶，样本不足时如实报告「未就绪」。
+ *
+ * 另外两条事实写死在断言里：只有**汇总询问率**单调（少问 < 默认 < 多问），
+ * 逐调用并不单调；冷启动比校准后**更安静**（0.47% vs 1.1%、19.3% vs 25.1%）。
  *
  * 全部是纯函数，不碰网络与文件系统。
  */
@@ -73,21 +78,45 @@ test("默认档是默认值，且升级不改变行为", () => {
   assert.deepEqual([...TOLERANCE_LEVELS], ["autonomous", "relaxed", "default", "cautious"]);
 });
 
-test("自治档：ask → delegate，且从不询问", () => {
+test("不问档：软性 ask → delegate，但强制审批照旧会问", () => {
   const result = resolveTolerance({ level: "autonomous", legacyKind: "ask", severity: 0.99 });
   assert.equal(result.kind, "delegate");
   assert.equal(result.changed, true);
   assert.match(result.note, /autonomous/);
-  // 极高严重度也不问。
+  // 极高严重度也不弹**软性**询问。
   assert.equal(
     resolveTolerance({ level: "autonomous", legacyKind: "ask", severity: 1 }).kind,
     "delegate",
   );
+  // 「不问」不等于「什么都不放行」：权限强制的询问不在这条软性路径上，
+  // 审批可用时仍然交给用户（resolveTolerance 的 mandatory 分支在档位判断之前）。
+  assert.equal(
+    resolveTolerance({
+      level: "autonomous",
+      legacyKind: "delegate",
+      severity: 0.01,
+      mandatory: "requires_approval",
+      approvalAvailable: true,
+    }).kind,
+    "ask",
+    "强制审批不属于软性询问，不问档也必须问",
+  );
+  // 审批不可用时不能拿模型替代许可：直接拒绝。
+  assert.equal(
+    resolveTolerance({
+      level: "autonomous",
+      legacyKind: "delegate",
+      severity: 0.01,
+      mandatory: "requires_approval",
+      approvalAvailable: false,
+    }).kind,
+    "deny",
+  );
 });
 
-test("自治档绝不取消 deny：那不是打扰，是安全边界", () => {
+test("不问档绝不取消 deny：那不是打扰，是安全边界", () => {
   const result = resolveTolerance({ level: "autonomous", legacyKind: "deny", severity: 0.5 });
-  assert.equal(result.kind, "deny", "自治档必须保留拦截");
+  assert.equal(result.kind, "deny", "不问档必须保留拦截");
   assert.equal(result.changed, false, "deny 原样返回，不算「改动」");
 });
 
@@ -98,23 +127,60 @@ test("四档都保留 deny", () => {
   }
 });
 
-test("轻松档：严重度达线才问，未达线一律放行（替换默认判断）", () => {
+test("少问档：严重度达线才问，未达线一律放行（替换默认判断）", () => {
   // 达线：即使默认会放行，也升级成 ask。
   const hot = resolveTolerance({ level: "relaxed", legacyKind: "delegate", severity: 0.9, cutoff: 0.5 });
   assert.equal(hot.kind, "ask");
   assert.equal(hot.changed, true);
 
-  // 未达线：即使默认会 ask，也放行——这是「只问最前 1%」的字面语义。
+  // 未达线：即使默认会 ask，也放行——这是「只问严重度尾部」的字面语义。
   const cold = resolveTolerance({ level: "relaxed", legacyKind: "ask", severity: 0.1, cutoff: 0.5 });
   assert.equal(cold.kind, "delegate");
   assert.equal(cold.changed, true);
 });
 
-test("轻松档未校准时用冷启动阈值，行为量级与校准后一致", () => {
+test("少问档不是默认档的子集：与默认判断是双向差异", () => {
+  const cutoff = TOLERANCE_PRESETS.relaxed.fallbackSeverity;
+  assert.equal(cutoff, 0.6, "冷启动固定分是 0.60");
+
+  // 方向 A：默认会问、少问不问。用「没有 probabilities 的 medium」——
+  // 分类兜底 medium = 0.5（lib/tolerance.js 的 CATEGORICAL_RISK），低于 0.60，
+  // 所以少问档一定把这次 ask 撤掉。
+  const medium = answers({ risk: "medium", irrev: 0.35, task: 0.2 });
+  const mediumSeverity = severityOf(medium);
+  assert.ok(mediumSeverity < cutoff, `medium 的严重度应低于 0.60，实际 ${mediumSeverity}`);
+  assert.equal(
+    resolveTolerance({ level: "default", legacyKind: "ask", severity: mediumSeverity }).kind,
+    "ask",
+    "默认档沿用决策模型的 ask",
+  );
+  assert.equal(
+    resolveTolerance({ level: "relaxed", legacyKind: "ask", severity: mediumSeverity, cutoff: null }).kind,
+    "delegate",
+    "少问档应撤掉不在尾部的 ask（否则它就成了默认档的子集）",
+  );
+
+  // 方向 B：默认放行、少问反而问（严重度达线）。注入达线触及 0.90 安全下限。
+  const hotSeverity = severityOf(answers({ inj: 0.95 }));
+  assert.ok(hotSeverity >= cutoff, `注入样本应达线，实际 ${hotSeverity}`);
+  assert.equal(
+    resolveTolerance({ level: "default", legacyKind: "delegate", severity: hotSeverity }).kind,
+    "delegate",
+  );
+  assert.equal(
+    resolveTolerance({ level: "relaxed", legacyKind: "delegate", severity: hotSeverity, cutoff: null }).kind,
+    "ask",
+    "少问档仍要把达线的放行升级成 ask",
+  );
+});
+
+test("少问档未校准时用冷启动阈值 0.60（它比校准后更安静）", () => {
   const preset = TOLERANCE_PRESETS.relaxed;
   assert.equal(preset.percentile, 0.99);
-  // 冷启动阈值必须是有限数（不是 Infinity，也不是 null）。
-  assert.ok(Number.isFinite(preset.fallbackSeverity), "轻松档必须有冷启动阈值");
+  // 冷启动阈值必须是有限数（不是 Infinity，也不是 null），且是实测分界线 0.60：
+  // 实测它覆盖 0.47%，校准后的 P99（≈0.50）覆盖 1.1%——所以冷启动**更安静**，
+  // 攒够 50 个样本的那一刻是变吵，不是变安静。
+  assert.ok(Number.isFinite(preset.fallbackSeverity), "少问档必须有冷启动阈值");
   const above = resolveTolerance({
     level: "relaxed",
     legacyKind: "delegate",
@@ -125,11 +191,12 @@ test("轻松档未校准时用冷启动阈值，行为量级与校准后一致",
   assert.equal(above.cutoff, preset.fallbackSeverity, "未校准时 cutoff 应回落到冷启动值");
 });
 
-test("谨慎档：默认判断 ∪ 最前 25% —— 因此一定 ≥ 默认", () => {
+test("多问档：默认判断 ∪ 最前 25% —— 因此逐调用一定 ⊇ 默认", () => {
   const preset = TOLERANCE_PRESETS.cautious;
   assert.equal(preset.percentile, 0.75);
+  assert.equal(preset.fallbackSeverity, 0.3, "冷启动固定分是 0.30");
 
-  // 默认会 ask → 谨慎也 ask（叠加而不是替换）。
+  // 默认会 ask → 多问也 ask（叠加而不是替换）。
   const keptFromLegacy = resolveTolerance({
     level: "cautious",
     legacyKind: "ask",
@@ -138,7 +205,7 @@ test("谨慎档：默认判断 ∪ 最前 25% —— 因此一定 ≥ 默认", (
   });
   assert.equal(keptFromLegacy.kind, "ask");
 
-  // 默认放行但严重度达线 → 谨慎升级成 ask。
+  // 默认放行但严重度达线 → 多问升级成 ask。
   const lifted = resolveTolerance({
     level: "cautious",
     legacyKind: "delegate",
@@ -158,7 +225,7 @@ test("谨慎档：默认判断 ∪ 最前 25% —— 因此一定 ≥ 默认", (
   assert.equal(quiet.kind, "delegate");
 });
 
-test("谨慎档的询问率必须高于默认档，轻松档必须低于默认档（单调）", () => {
+test("汇总询问率单调：少问 < 默认 < 多问（逐调用仍可双向差异）", () => {
   // 用一批合成的答案模拟真实分布：大部分良性、少数危险。
   const samples = [];
   for (let i = 0; i < 100; i += 1) {
@@ -195,8 +262,10 @@ test("谨慎档的询问率必须高于默认档，轻松档必须低于默认�
       cautiousAsks += 1;
     }
   });
-  assert.ok(relaxedAsks < defaultAsks, `轻松档(${relaxedAsks}) 应少于默认档(${defaultAsks})`);
-  assert.ok(cautiousAsks > defaultAsks, `谨慎档(${cautiousAsks}) 应多于默认档(${defaultAsks})`);
+  assert.ok(relaxedAsks < defaultAsks, `少问档(${relaxedAsks}) 应少于默认档(${defaultAsks})`);
+  assert.ok(cautiousAsks > defaultAsks, `多问档(${cautiousAsks}) 应多于默认档(${defaultAsks})`);
+  // 注意这只是**汇总率**单调：少问档替换默认判断，同一批样本里两者互相覆盖，
+  // 谁也不是谁的超集（双向差异另有专测）。
 });
 
 test("严重度：三类危险情况各自把分数拉高", () => {
@@ -327,7 +396,7 @@ test("校准器：就绪前 cutoff 为 null（调用方据此回落到冷启动�
   assert.ok(Number.isFinite(ready.cutoff), "就绪后必须给出阈值");
 });
 
-test("toleranceCutoff：自治 / 默认两档不按分位数走", () => {
+test("toleranceCutoff：不问 / 默认两档不按分位数走", () => {
   const calibrator = new ToleranceCalibrator();
   for (let i = 0; i < 100; i += 1) calibrator.observe("p", "m", 0.5);
   for (const level of ["autonomous", "default"]) {
@@ -365,10 +434,38 @@ test("每一档都有中英成对的标签与说明（界面两处共用）", ()
   }
 });
 
-test("分位数含义与档位语义一致：轻松=最前 1%，谨慎=最前 25%", () => {
-  assert.equal(TOLERANCE_PRESETS.relaxed.percentile, 0.99, "轻松档应取 P99");
-  assert.equal(TOLERANCE_PRESETS.cautious.percentile, 0.75, "谨慎档应取 P75");
-  assert.equal(TOLERANCE_PRESETS.autonomous.percentile, null, "自治档不按比例");
+test("四档标签定稿：不问 / 少问 / 默认 / 多问（英文 Don't ask / Ask less / Default / Ask more）", () => {
+  assert.deepEqual(
+    TOLERANCE_LEVELS.map((id) => TOLERANCE_PRESETS[id].label),
+    ["不问", "少问", "默认", "多问"],
+  );
+  assert.deepEqual(
+    TOLERANCE_LEVELS.map((id) => TOLERANCE_PRESETS[id].labelEn),
+    ["Don't ask", "Ask less", "Default", "Ask more"],
+  );
+});
+
+test("摘要必须与实现事实一致，不能只说「更少/更多」", () => {
+  // 少问 = 严重度尾部（校准后 1%，冷启动固定分 0.60）+ **替换**语义。
+  assert.match(TOLERANCE_PRESETS.relaxed.summary, /1%/, "少问档摘要要写明校准后的 1%");
+  assert.match(TOLERANCE_PRESETS.relaxed.summary, /0\.60/, "少问档摘要要写明冷启动固定分 0.60");
+  assert.match(TOLERANCE_PRESETS.relaxed.summary, /替换/, "少问档是替换默认判断，摘要必须说清");
+  // 多问 = 默认判断之上**叠加**那一批（校准后 25%，冷启动固定分 0.30）。
+  assert.match(TOLERANCE_PRESETS.cautious.summary, /25%/, "多问档摘要要写明校准后的 25%");
+  assert.match(TOLERANCE_PRESETS.cautious.summary, /0\.30/, "多问档摘要要写明冷启动固定分 0.30");
+  assert.match(TOLERANCE_PRESETS.cautious.summary, /默认判断/, "多问档是叠加在默认判断之上");
+  // 不问 ≠ 什么都不管：强制审批与拒绝照旧，摘要不能把它说成「全部放行」。
+  assert.match(TOLERANCE_PRESETS.autonomous.summary, /人工批准/, "不问档摘要要保留强制人工批准这一事实");
+  assert.match(TOLERANCE_PRESETS.autonomous.summary, /拒绝/, "不问档摘要要保留拒绝这一事实");
+  // 默认档的说法要落到决策模型会问的那几类，而不是「一律不问」。
+  assert.match(TOLERANCE_PRESETS.default.summary, /决策模型/, "默认档摘要要写明沿用决策模型判断");
+  assert.match(TOLERANCE_PRESETS.default.summary, /注入/, "默认档摘要要写明疑似注入会问");
+});
+
+test("分位数含义与档位语义一致：少问=最前 1%，多问=最前 25%", () => {
+  assert.equal(TOLERANCE_PRESETS.relaxed.percentile, 0.99, "少问档应取 P99");
+  assert.equal(TOLERANCE_PRESETS.cautious.percentile, 0.75, "多问档应取 P75");
+  assert.equal(TOLERANCE_PRESETS.autonomous.percentile, null, "不问档不按比例");
   assert.equal(TOLERANCE_PRESETS.default.percentile, null, "默认档不按比例");
 });
 

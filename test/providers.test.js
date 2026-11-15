@@ -578,6 +578,67 @@ test("custom 分支同样归一思考模式", () => {
   assert.equal(provider.thinkMode, "never");
 });
 
+test("预设带 think_mode 能力位：只有 bamboonode 是 supported，其余 unknown / unsupported", () => {
+  // 能力位是「已知事实」，不是「希望如此」：
+  //   supported   bamboonode 的决策端点就是 think_mode 的原始出处（实测三档延迟不同）；
+  //   unknown     TypeSafe / 两个 SiliconFlow 站点 / custom 网关都没实测过 think_mode；
+  //   unsupported Perplexity / OpenRouter 的公开 API 是 chat 补全形状，没有这个字段。
+  assert.deepEqual(
+    Object.fromEntries(PROVIDER_IDS.map((id) => [id, PROVIDER_PRESETS[id].thinkModeSupport])),
+    {
+      systemone: "unknown",
+      bamboonode: "supported",
+      siliconflow: "unknown",
+      "siliconflow-intl": "unknown",
+      perplexity: "unsupported",
+      openrouter: "unsupported",
+      custom: "unknown",
+    },
+  );
+  // 三选一，不允许别的拼写：界面与文档都按这三个值分支。
+  for (const id of PROVIDER_IDS) {
+    assert.ok(
+      ["supported", "unknown", "unsupported"].includes(PROVIDER_PRESETS[id].thinkModeSupport),
+      `${id} 的能力位取值非法：${String(PROVIDER_PRESETS[id].thinkModeSupport)}`,
+    );
+  }
+});
+
+test("providerCatalog 下发 think_mode 能力位（界面不必自己猜每家行为）", () => {
+  const catalog = providerCatalog();
+  assert.equal(catalog.length, PROVIDER_IDS.length);
+  const byId = Object.fromEntries(catalog.map((item) => [item.id, item]));
+  assert.equal(byId.bamboonode.thinkModeSupport, "supported");
+  assert.equal(byId.perplexity.thinkModeSupport, "unsupported");
+  assert.equal(byId.openrouter.thinkModeSupport, "unsupported");
+  assert.equal(byId.systemone.thinkModeSupport, "unknown");
+  assert.equal(byId.custom.thinkModeSupport, "unknown");
+  // 每一格都必须有值：缺字段会让前端退回自己的硬编码，正是要避免的漂移。
+  for (const item of catalog) {
+    assert.equal(typeof item.thinkModeSupport, "string", `${item.id} 缺能力位`);
+  }
+});
+
+test("服务端下发 provider 沿用本机 thinkMode（此前会静默退回 never）", () => {
+  const server = {
+    baseUrl: "https://relay.example.com/v1",
+    model: "relay-model",
+    endpointStyle: "decisions",
+  };
+  const provider = resolveProvider({ thinkMode: "always" }, { server });
+  assert.equal(provider.id, "server");
+  // thinkMode 是本机行为偏好，不属于服务端下发契约（下发载荷只有
+  // baseUrl / model / endpointStyle / key / ttlSeconds），必须原样保留。
+  assert.equal(provider.thinkMode, "always");
+  // buildRequestBody 直接消费 provider.thinkMode，所以字段补上才真的生效。
+  assert.equal(buildRequestBody(provider, { state: {}, questions: {} }).think_mode, "always");
+
+  // 与本地分支一致：非法值仍然归一为 never，空串也不例外。
+  assert.equal(resolveProvider({ thinkMode: "sometimes" }, { server }).thinkMode, "never");
+  assert.equal(resolveProvider({ thinkMode: "" }, { server }).thinkMode, "never");
+  assert.equal(resolveProvider({}, { server }).thinkMode, "never");
+});
+
 // --------------------------------------------- 8. 硅基流动（国内站 / 国际站）
 
 test("siliconflow 预设：只认 /systemone，默认模型 Kev-4B，只填 key 即可用", () => {

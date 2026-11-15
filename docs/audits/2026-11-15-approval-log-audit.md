@@ -100,14 +100,14 @@
 
 ### v1.9.0（11-14 22:13–00:39，189 条）
 
-- **拒绝率 15.3%（29/189）**，几乎全部是 `pwsh`（23 次），原因码 `unknown-high-impact-effect-requires-approval`（26 次）。
+- **拒绝率 15.3%（29/189）**，几乎全部是 `pwsh`（23 次），拒绝原因（当时尚无 `reasonCode` 字段，取 `detail`）为 `unknown-high-impact-effect-requires-approval`（26 次）。
 - 这是安全改造的第一次「过度收紧」：**本地静态规则判不出副作用的命令一律按「需要审批」处理**，而审批通道是 `never`，于是直接拒绝。
 - 同时 ask 17.5%（33 次），说明同一批会话里「问」与「拒」并存，用户无法预测。
 - **结论（已修复）**：1.9.1 起把这类情况改为 `unknown + 模型复核`（`policy.js:26` 现状），不再默认要求审批。
 
 ### v1.9.1（11-15 00:39–10:01，168 条）
 
-- **拒绝率升到 23.2%（39/168）**，原因码变为 `unresolved-effect-needs-model-review` 26 次 + `advisory-failed-unknown-effect` 12 次。
+- **拒绝率升到 23.2%（39/168）**，拒绝原因（`detail`，同一窗口内多数记录尚无 `reasonCode`）为 `unresolved-effect-needs-model-review` 26 次 + `advisory-failed-unknown-effect` 12 次。
 - 触发链：决策模型返回 **`answer-shape-mismatch`**（该窗口 21 次模型失败、总 24 次 shape 失败中绝大多数集中在此），而当时**没有可用的第二模型回退**，于是 fail-closed → deny。
 - 失败工具：`pwsh` 21、`edit` 12；`edit` 的 12 次连续拒绝在 06:31–06:33（本地）集中出现，属于一次模型解析故障放大成一组硬拒绝。
 - 同时出现**只读 MCP 误拒**：`mcp__blender__get_addon_status`（2）、`get_scene_info`（1）、`mcp__siyuan__system`（1）。

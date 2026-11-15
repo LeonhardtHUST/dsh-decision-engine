@@ -1312,7 +1312,26 @@ async function probeSetup(mod, { decisionFetch, before } = {}) {
       else process.env.DSH_HOME = originalHome;
       if (originalKey === undefined) delete process.env.BAMBOO_API_KEY;
       else process.env.BAMBOO_API_KEY = originalKey;
-      rmSync(home, { recursive: true, force: true });
+      // 清理要容忍「后台旁路还在写」：`apply()` 里有若干 `void` 的写盘任务
+      // （决策明细、统计），它们可能在本用例结束时刚好打开着文件——Windows
+      // 上 rmSync 会因此抛 EPERM/ENOTEMPTY。这与 decisions-route.test.js 的
+      // `cleanupDir()` 是同一个已知竞态；重试几次即可，其它错误仍然抛出。
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        try {
+          rmSync(home, { recursive: true, force: true });
+          return;
+        } catch (error) {
+          const code = error?.code;
+          if (code === "ENOENT") return;
+          if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") throw error;
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
+        }
+      }
+      try {
+        rmSync(home, { recursive: true, force: true });
+      } catch {
+        /* 清理失败不影响用例结论 */
+      }
     },
   };
 }
@@ -1509,4 +1528,41 @@ test("韧性：冷却期内缓存命中不受影响（冷却只拦要出网的�
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+// ------------------------------------------------------------------ 决策明细的会话引用
+
+test("决策明细收到会话引用（session/workspace 分文件模式要靠它取名）", async () => {
+  // 为什么单独钉这一条：记录体里只有 sessionId，会话名/工作区名只挂在宿主
+  // Session 上。引擎若不把 Session 原样传给 recordDetail，session 模式就会
+  // 退化成「一串 id 当文件名」，而 workspace 模式根本无从取名。
+  const details = [];
+  const session = { id: "s-meta", header: { title: "我的会话", cwd: "/work/repo" } };
+  const runner = createDecisionRunner({
+    getConfig: () => baseCfg(),
+    client: {
+      async classify() {
+        return {
+          answers: { covered: { type: "noul", noul: 0.9 }, would_add: { type: "noul", noul: 0.6 } },
+          latencyMs: 5,
+          provider: "fixture",
+          model: "fixture-1",
+        };
+      },
+    },
+    logger: { warn() {}, info() {} },
+    modeOf: (current, id) => (id === "retrieval" ? "observe" : "off"),
+    log: async () => {},
+    specOf: (id) => POINT_SPECS[id],
+    recordDetail: (record, referenced) => details.push({ record, referenced }),
+  });
+  const result = await runner.ask(
+    "retrieval",
+    { tool: "web_search", query: "x", recent: "" },
+    { session },
+  );
+  assert.equal(result.action.kind, "skip");
+  assert.equal(details.length, 1, "应写一条决策明细");
+  assert.equal(details[0].record.sessionId, "s-meta");
+  assert.equal(details[0].referenced, session, "第二个参数必须是原始会话引用");
 });

@@ -16,11 +16,12 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync, existsSync } from "node:fs";
+import { mkdtempSync, appendFileSync, readFileSync, writeFileSync, rmSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { apply } from "../lib/index.js";
+import { apply, createSessionMetaResolver } from "../lib/index.js";
+import { dateKeyOf } from "../lib/decision-log.js";
 
 /**
  * 造一个隔离环境。
@@ -66,8 +67,14 @@ function setup() {
  * 它会表现为「全量跑里随机变红」，而那种红会让人开始忽略真正的回归——
  * 一个会随机亮起的红灯比没有红灯更危险。
  *
- * 因此这里重试几次，并且**只吞 ENOTEMPTY / ENOENT**：其它错误（权限、
- * 路径算错）仍要抛出来，因为它们是真的问题。
+ * 因此这里重试几次，并且**只吞 ENOTEMPTY / EBUSY / EPERM**：其它错误（路径
+ * 算错、权限真的不对）仍要抛出来，因为它们是真的问题。
+ *
+ * `EPERM` 在 Windows 上的含义与 POSIX 不同：目录里还有**打开着的文件句柄**
+ * （后台 append/轮转正在写分片）时 `rmSync` 会直接报 EPERM，而 Linux 报
+ * ENOTEMPTY/EBUSY。分文件改造之后后台清理与写入更频繁，这个竞态从「偶发」
+ * 变成了「全量跑里能稳定复现一次」——按平台加进重试集合，而不是把用例改成
+ * 忽略清理错误（那样真把路径算错也看不出来了）。
  *
  * @param dir - 要删的临时目录。
  */
@@ -80,8 +87,8 @@ function cleanupDir(dir) {
       const code = error?.code;
       // 目录已被别的清理删掉：目标达成，正常返回。
       if (code === "ENOENT") return;
-      if (code !== "ENOTEMPTY" && code !== "EBUSY") throw error;
-      // 后台写者刚创建了新文件：稍等再试。
+      if (code !== "ENOTEMPTY" && code !== "EBUSY" && code !== "EPERM") throw error;
+      // 后台写者刚创建/占用了文件：稍等再试。
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20);
     }
   }
@@ -105,14 +112,25 @@ async function get(routes, url) {
   return { status: res.status, data: await res.json() };
 }
 
-/** 往明细文件里写几行。 */
+/**
+ * 往当日分片里写几行。
+ *
+ * 分文件改造后日志在 `logs/<今天>.log`。这里**直接写当日分片**而不是旧的
+ * `decisions.jsonl`：旧文件会触发启动时的一次性迁移，而迁移是 `void` 的
+ * 后台动作——若让用例依赖「迁移先完成」，就变成了对调度顺序的断言，
+ * 在不同的磁盘/CI 上会随机红。迁移本身由 `test/decision-store.test.js`
+ * 直接 await 验证。
+ */
 function seed(dataDir, entries) {
-  mkdirSync(dataDir, { recursive: true });
+  const logs = join(dataDir, "logs");
+  mkdirSync(logs, { recursive: true });
+  const file = join(logs, `${dateKeyOf(Date.now())}.log`);
   writeFileSync(
-    join(dataDir, "decisions.jsonl"),
+    file,
     entries.map((entry) => `${JSON.stringify(entry)}\n`).join(""),
     "utf8",
   );
+  return file;
 }
 
 /** 一条最小明细记录。 */
@@ -185,12 +203,9 @@ test("文件不存在时返回空列表而不是 500", async () => {
 test("坏行被跳过，其余记录照常返回", async () => {
   const { home, routes, dataDir } = setup();
   try {
-    mkdirSync(dataDir, { recursive: true });
-    writeFileSync(
-      join(dataDir, "decisions.jsonl"),
-      `${JSON.stringify(entry({ tool: "read" }))}\n{"v":1,"broken\n${JSON.stringify(entry({ seq: 2, tool: "bash" }))}\n`,
-      "utf8",
-    );
+    const file = seed(dataDir, [entry({ tool: "read" })]);
+    appendFileSync(file, '{"v":1,"broken\n', "utf8");
+    appendFileSync(file, `${JSON.stringify(entry({ seq: 2, tool: "bash" }))}\n`, "utf8");
     const { status, data } = await get(
       routes,
       "/api/decision-engine/session-decisions?sessionId=session-a",
@@ -246,7 +261,12 @@ test("返回体带上界面需要的元信息（文件路径、开关）", async
     );
     assert.equal(data.sessionId, "session-a");
     assert.equal(typeof data.file, "string");
-    assert.ok(data.file.includes("decisions.jsonl"), "应回报明细文件路径");
+    // 分文件改造后默认按日期分片（logs/<YYYY-MM-DD>.log），不再是单文件
+    // decisions.jsonl——但 `file` 字段保留（旧界面按它显示「记录在哪」）。
+    assert.ok(data.file.endsWith(".log"), `应回报明细分片路径：${data.file}`);
+    assert.ok(Array.isArray(data.files), "分文件模式下要回报实际读取的分片清单");
+    assert.equal(data.files.length, 1);
+    assert.equal(data.files[0], data.file);
     assert.equal(data.enabled, true, "默认开启");
     // DEC-029：「采不采内容」不再是独立档位，响应里就该没有这个字段。
     // 断言「它不在」比断言「它是 true」更能防止它悄悄回来。
@@ -435,4 +455,225 @@ test("状态接口回显匿名统计档位（此前永远显示兜底值）", as
   } finally {
     cleanupDir(home);
   }
+});
+
+// ------------------------------------------------------------------ 日志分文件与保留（T3）
+
+test("状态接口回显日志分文件/保留的默认值与可选清单", async () => {
+  const { home, routes } = setup();
+  try {
+    const { status, data } = await get(routes, "/api/decision-engine/status");
+    assert.equal(status, 200);
+    assert.equal(data.decisionsSplitMode, "date", "默认按日期分文件");
+    assert.deepEqual(
+      data.decisionsSplitModes,
+      ["single", "date", "session", "workspace"],
+      "可选模式由服务端下发，前端不硬编码",
+    );
+    assert.equal(data.decisionsDateSeparator, "-");
+    assert.deepEqual(data.decisionsDateSeparators, ["-", "_", "."]);
+    assert.equal(data.decisionsRetentionDays, 30, "默认保留 30 天");
+    // 清理报告：设置页要用它显示「几个文件 / 多少字节」。
+    assert.equal(typeof data.decisionsStorage, "object");
+    assert.equal(typeof data.decisionsStorage.files, "number");
+    assert.equal(typeof data.decisionsStorage.bytes, "number");
+    assert.equal(data.decisionsStorage.retentionDays, 30);
+    assert.equal(data.decisionsStorage.totalMaxBytes, 64 * 1024 * 1024);
+    // 主分片路径：默认 date 模式 → logs/<今天>.log。
+    assert.ok(String(data.decisionsFile).endsWith(".log"), `实际：${data.decisionsFile}`);
+  } finally {
+    cleanupDir(home);
+  }
+});
+
+test("日志分文件模式能保存并回显（配置页下拉的链路）", async () => {
+  const { home, routes } = setup();
+  try {
+    const res = await routes["/api/decision-engine/config"].fetch({
+      method: "PUT",
+      text: async () =>
+        JSON.stringify({
+          decisionsSplitMode: "session",
+          decisionsDateSeparator: "_",
+          decisionsRetentionDays: 7,
+        }),
+    });
+    assert.equal(res.status, 200, `保存应成功：${JSON.stringify(await res.clone().json())}`);
+    const payload = await res.json();
+    assert.equal(payload.decisionsSplitMode, "session", "保存后应立刻回显");
+    assert.equal(payload.decisionsDateSeparator, "_");
+    assert.equal(payload.decisionsRetentionDays, 7);
+    // 而且真的落盘了（不是只改内存）。
+    const raw = readFileSync(join(home, "dsh-decision-engine", "config.yml"), "utf8");
+    assert.ok(raw.includes("decisionsSplitMode: session"), `配置内容：${raw}`);
+    assert.ok(raw.includes("decisionsDateSeparator: _"), `配置内容：${raw}`);
+    assert.ok(raw.includes("decisionsRetentionDays: 7"), `配置内容：${raw}`);
+  } finally {
+    cleanupDir(home);
+  }
+});
+
+test("非法的分文件模式 / 分隔符 / 保留天数一律 400，且不落盘", async () => {
+  const configPath = (home) => join(home, "dsh-decision-engine", "config.yml");
+  for (const patch of [
+    { decisionsSplitMode: "Day" },
+    { decisionsSplitMode: 1 },
+    { decisionsDateSeparator: "," },
+    { decisionsRetentionDays: -1 },
+    { decisionsRetentionDays: 3651 },
+    { decisionsRetentionDays: 1.5 },
+    { decisionsRetentionDays: "30" },
+  ]) {
+    const { home, routes } = setup();
+    try {
+      const res = await routes["/api/decision-engine/config"].fetch({
+        method: "PUT",
+        text: async () => JSON.stringify(patch),
+      });
+      assert.equal(res.status, 400, `${JSON.stringify(patch)} 应被拒`);
+      const payload = await res.json();
+      assert.equal(typeof payload.error, "string", "应给出可读错误");
+      assert.equal(existsSync(configPath(home)), false, "被拒的请求不该写出配置文件");
+    } finally {
+      cleanupDir(home);
+    }
+  }
+});
+
+test("保留天数 0 是合法值（= 不按天删）", async () => {
+  const { home, routes } = setup();
+  try {
+    const res = await routes["/api/decision-engine/config"].fetch({
+      method: "PUT",
+      text: async () => JSON.stringify({ decisionsRetentionDays: 0 }),
+    });
+    assert.equal(res.status, 200);
+    const payload = await res.json();
+    assert.equal(payload.decisionsRetentionDays, 0);
+    const raw = readFileSync(join(home, "dsh-decision-engine", "config.yml"), "utf8");
+    assert.ok(raw.includes("decisionsRetentionDays: 0"), `配置内容：${raw}`);
+  } finally {
+    cleanupDir(home);
+  }
+});
+
+test("切换成 single 模式后主分片回报旧文件名（兼容旧界面）", async () => {
+  const { home, routes } = setup();
+  try {
+    const res = await routes["/api/decision-engine/config"].fetch({
+      method: "PUT",
+      text: async () => JSON.stringify({ decisionsSplitMode: "single" }),
+    });
+    assert.equal(res.status, 200);
+    const payload = await res.json();
+    assert.ok(
+      String(payload.decisionsFile).includes("decisions.jsonl"),
+      `single 模式的主分片应沿用旧名：${payload.decisionsFile}`,
+    );
+  } finally {
+    cleanupDir(home);
+  }
+});
+
+test("session-decisions 回报实际读取的分片清单（files[]）", async () => {
+  const { home, routes, dataDir } = setup();
+  try {
+    const file = seed(dataDir, [
+      entry({ seq: 1, sessionId: "session-a" }),
+      entry({ seq: 2, sessionId: "session-a" }),
+    ]);
+    const { status, data } = await get(
+      routes,
+      "/api/decision-engine/session-decisions?sessionId=session-a",
+    );
+    assert.equal(status, 200);
+    assert.equal(Array.isArray(data.files), true);
+    assert.equal(data.files.length, 1);
+    assert.equal(data.files[0], file);
+    assert.equal(data.total, 2);
+  } finally {
+    cleanupDir(home);
+  }
+});
+
+// ------------------------------------------------------------------ 会话名 / 工作区名解析
+
+test("sessionMetaOf：标题优先，其次 header.title，再退 cwd 目录名", () => {
+  const session = { id: "s-1", header: { title: "header 标题", cwd: "/work/repo" } };
+  const withService = createSessionMetaResolver({
+    getTitleService: () => ({ get: () => ({ title: "服务标题" }) }),
+  });
+  assert.equal(withService(session).sessionName, "服务标题", "宿主标题最优先");
+
+  const noService = createSessionMetaResolver({ getTitleService: () => undefined });
+  assert.equal(noService(session).sessionName, "header 标题", "没有服务时用 header.title");
+
+  const noTitle = createSessionMetaResolver();
+  assert.equal(
+    noTitle({ id: "s-2", header: { cwd: "C:\\work\\repo" } }).sessionName,
+    "repo",
+    "没有标题时用 cwd 的目录名",
+  );
+});
+
+test("sessionMetaOf：工作区名取 workspaceRoots[0] 的基名，退 cwd", () => {
+  const resolver = createSessionMetaResolver();
+  assert.equal(
+    resolver({ id: "s-roots", header: { cwd: "/tmp/x", workspaceRoots: ["/projects/my-app", "/other"] } })
+      .workspaceName,
+    "my-app",
+  );
+  assert.equal(
+    resolver({ id: "s-cwd", header: { cwd: "/projects/fallback" } }).workspaceName,
+    "fallback",
+    "没有 workspaceRoots 时退回 cwd 基名",
+  );
+});
+
+test("sessionMetaOf：拿不到名字时退化为会话 id / unknown，且永不抛错", () => {
+  const resolver = createSessionMetaResolver();
+  assert.equal(resolver({ id: "session-id-only" }).sessionName, "session-id-only");
+  assert.equal(resolver(undefined).sessionName, "unknown");
+  // 标题服务抛错时仍能走 fallback。
+  const throwing = createSessionMetaResolver({
+    getTitleService: () => {
+      throw new Error("host service unavailable");
+    },
+  });
+  assert.equal(throwing({ id: "s", header: { title: "fallback" } }).sessionName, "fallback");
+});
+
+test("sessionMetaOf：名字进文件名前先脱敏并截断（隐私）", () => {
+  const resolver = createSessionMetaResolver();
+  const meta = resolver({
+    id: "s",
+    header: { title: `sk-ABCDEFGHIJKLMNOPQRST 的会话 ${"x".repeat(200)}`, cwd: "/w/repo" },
+  });
+  assert.equal(meta.sessionName.includes("sk-ABCDEFGHIJKLMNOPQRST"), false, "密钥形态必须被脱敏");
+  assert.ok(meta.sessionName.length <= 64, `截断到 64：${meta.sessionName.length}`);
+});
+
+test("sessionMetaOf：按 sessionId 缓存（同一会话不重复问宿主）", () => {
+  let calls = 0;
+  const resolver = createSessionMetaResolver({
+    getTitleService: () => ({
+      get: () => {
+        calls += 1;
+        return { title: "标题" };
+      },
+    }),
+  });
+  const session = { id: "cached-session" };
+  const first = resolver(session);
+  const second = resolver(session);
+  assert.equal(first, second, "同一会话应返回同一个对象（命中缓存）");
+  assert.equal(calls, 1, "宿主服务只该被问一次");
+});
+
+test("sessionMetaOf：字符串 id（思维链翻译点）也能解析", () => {
+  const resolver = createSessionMetaResolver();
+  const meta = resolver("id-as-string");
+  assert.equal(meta.sessionName, "id-as-string");
+  assert.equal(typeof meta.workspaceName, "string");
+  assert.ok(meta.workspaceName.length > 0);
 });

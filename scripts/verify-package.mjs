@@ -40,6 +40,7 @@ export function verifyPackageFiles(files, manifest) {
     "locale/en.json", "locale/zh.json", "lib/index.js", "lib/client.js", "lib/client.charts.js",
     "lib/providers.js", "lib/guard/context.js", "lib/guard/effects.js", "lib/guard/policy.js",
     "lib/guard/advisory.js", "lib/guard/audit.js", "lib/guard/fallback.js", "lib/guard/listener.js",
+    "lib/decision-log.js", "lib/decision-store.js",
     "lib/vendor/microcharts-charts.css", "docs/security-revision.md", "docs/releasing.md",
   ];
   for (const name of required) assert.ok(files.has(name), `Missing packed file: ${name}`);

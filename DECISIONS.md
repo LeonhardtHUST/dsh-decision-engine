@@ -2,6 +2,169 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-066 本地未知副作用不再单独触发回退模型；`job_output` 补只读契约（2026-11-15）
+
+**背景**：用户报告「decision-model 对明显安全的操作也常常无法定论，随后 fallback 到
+大语言模型判定」。实测其 `decisions.jsonl`：41 条 `fallback_model` 记录里 24 条是
+`pwsh`，其中 23 条主模型已给出有效低风险 `delegate`，仍各多花 1.3–6.7 秒；primary
+平均 250ms、fallback 平均 2186ms。
+
+**根因链**（四步，缺一步都不会有这次现象）：
+
+1. `classifyToolEffect()` 对没有命中提权/破坏/联网正则的 shell 命令只替换
+   `reasonCodes`，保留骨架里的悲观默认值 `kind:"unknown", known:false,
+   highImpact:true`。它不是「已证明高危」，而是「没解析」。
+2. `evaluateMandatoryPolicy()` 把 `highImpact === true` 一律翻成
+   `mandatory="unknown"`，于是「没解析」在策略层变成了「权限未知」。
+3. `permissionPreset === "auto"` 时 `automaticReview` 为真，而 listener 把
+   `unresolved`（即 `mandatory === "unknown"`）当成独立触发条件，**不看主模型
+   结论**。主模型给出 valid + low + delegate 也照样进回退。
+4. 回退只能回答 allow/deny，拿不到宿主审批证据，也无法改变权限——它并不能
+   解决「权限未知」，只是在同一份证据上再要一次风险判断，失败还按 deny 闭锁。
+   于是「回退路由没配/超时」会把明显安全的调用直接拒掉（实测 4 例）。
+
+**决定**：只改路由，不改分类的保守性。`listener` 增加一个精确豁免：
+`effect.kind === "unknown" && effect.known === false`，且主模型 `status === "valid"`、
+`baseAction.kind === "delegate"`、`tolerated.kind === "delegate"`，且回退策略是
+`session` / `model`（「再叫一个模型复核」）时，`mandatory=unknown` 不再单独触发
+回退。其余触发条件（模型 ask、档位升级 ask、primary 失败、catch）逐字保留。
+
+**为什么不动 `effects.js` 对 shell 的判定**：`test/guard-policy.test.js` 把
+「`echo fixture` / `pwsh -EncodedCommand` 恒为 unknown」钉死，那条保守性是有意的
+（不解析 shell 就不声称读懂它）。这次修的是「unknown 不等于需要第二次模型」，
+不是「unknown 等于安全」。强制拒绝/审批、参数哈希、审批回放、missing-review 全部
+未动；写根之外的补丁仍在模型之前被拦下。
+
+**顺带**：`job_output` 增加严格只读契约（`job_id` 字符串、`wait` 布尔、
+`timeout_ms` 有限数，且不允许额外字段）→ `read_local`，走零模型快路径；形状不匹配
+仍回落 unknown。**不**把 `wait_agent` 列入：它等待的是子代理状态，是否算只读是产品
+判断，等有明确证据再加。
+
+**代价与边界**：外网/MCP（`external_network`）仍保留第二次独立复核——边界在宿主
+之外，那份余量是刻意的；显式 `allow`/`deny` 回退策略不受豁免影响（它们是用户写下
+的政策裁决，不是「多跑一次模型」）。
+
+## DEC-065 决策历史「裁决」列改短词、按结果着色、固定排序（2026-11-15）
+
+**背景**：用户反馈「裁决」一列用词太模糊、不够简洁明了。
+
+**实测**：`.1` 文件 2934 条里 `delegate` 占 86%，渲染成「交给主模型」；同一列还混着
+「照常放行」「本地检查通过」——三种说法都在说「放行」。`skip` 在 retrieval 上是
+拦截、在 cotTranslate 上只是没翻译；`defer` 没有颜色；17 个色相在深色面板上已难
+分辨；排序用显示名的 `localeCompare`，改名就悄悄改掉顺序。
+
+**决定**：
+
+1. **词按「这一步做了什么」写，且短**：allow/delegate→放行；ask→转人工；deny、
+   retrieval.skip→拦截；keep→不换模型；switch→换模型；redirect→换技能；
+   advise→建议分派；prune→裁剪；summarize→摘要；continue→续轮；translate→翻译；
+   stop→结束；inline→自己做；cotTranslate.skip→不翻译；defer→等你定；
+   无 action / degraded→未裁决（不再留空白格）。
+2. **颜色只说四件事**：allow 绿、ask 橙、reject 红、none 主文本灰，与统计页
+   allow/ask/reject 同色同义；颜色仍只是辅助，每格都有文字。
+3. **排序改固定 rank**（allow0 → ask1 → reject2 → none3，同 rank 再按决策点、时间），
+   不再依赖显示名的 localeCompare。
+4. **词表独立于全局 `tr` 词典**：这些词面与统计页重名却表达不同东西，挤进 EN_LABELS
+   会互相覆盖；改为按 `(point, kind)` 取 ZH/EN 两张表，英文界面直接取英文表。
+5. 统计页把裸中文字面量改走 `t()`，ask 的口径统一为「转人工」。
+
+## DEC-064 决策日志按日期/会话/工作区分文件 + 保留清理 + 紧凑格式（2026-11-15）
+
+**背景**：用户把 `~/.dsh/dsh-decision-engine/decisions.jsonl` 称为「日志」，抱怨
+「全部挤在一个文件里」（实测主文件 245KB、轮转文件 8.4MB），要求按日期/会话/工作区
+三选一分文件、自动删旧、降低占用。
+
+**实测到的体积构成**（这决定了压缩点该落在哪）：旧数据里 `content.questions` 把同一份
+844 字符的问题定义内联了 2444 次（2.06MB）；`scores.modelEvaluation` 与
+`content.state.modelEvaluation` 100% 逐字节相同；`state.args_preview` + `state.recent`
+合计 2.6MB。**新写入并不大**（约 2.3KB/条），8.4MB 主要是历史包袱。
+
+**决定**：
+
+1. `decisionsSplitMode`：`single`（旧行为）/ `date`（默认）/ `session` / `workspace`。
+   `date` 用 `logs/date/2026-11-15.log`，日期按**记录自己的 `ts` + 本机时区**算
+   （`Intl.DateTimeFormat.formatToParts`，绝不用 `toISOString().slice`——东八区
+   00:00–08:00 会落到前一天）；分隔符 `-`/`_`/`.` 可配。
+2. `session` 用 `<会话名>__<sessionId 前 8>.log`：会话名来自 `sessionTitle` 服务，
+   退化链为 `session.header.title` → cwd 目录名 → id；**名字先过 `maskSecrets` 再
+   截断**，因为它会进文件名。`workspace` 用工作区根目录名。
+3. 保留：`decisionsRetentionDays`（默认 30，0=不按天删）+ `decisionsTotalMaxBytes`
+   （默认 64MB）。启动一次、之后每 6 小时清理；**绝不删今天与正在写的分片**，
+   只认本插件命名的 `.log`。清理逻辑跳过非本插件文件与 `.migrated`。
+4. 紧凑格式：写盘前删掉与 `scores` 逐字节相同的 `content.state/answers.modelEvaluation`，
+   把已知问题集折叠成 `{ref, sha256, bytes}`，省略空串/false/0 默认字段；读取时
+   `expandRecord()` 还原，老记录同形化。不做字段名缩写与 gzip：`tail -f` / grep 是
+   这个文件存在的理由。
+5. 迁移：启动时若 `logs/` 没有分片且旧 `decisions.jsonl(.1)` 存在，逐行 compact 后
+   按 `ts` 落到 date 分片，写 marker，旧文件改名 `.migrated`（保留不删）。失败只
+   warn、不写 marker、不改名，下次启动重试；读取链始终保留旧文件兜底。
+
+**为什么不默认 `single`**：单文件在体量上来后按会话查历史要扫全文件，体积轮转还会
+把同一会话的记录切开。`date` 是清理最自然的单位，也是「今天的日志」这个问法的直接
+映射。老用户升级首启会自动迁移，原始文件保留。
+
+## DEC-063 「思考模式」改名为「决策模型思考」，并下发 provider 能力位（2026-11-15）
+
+**背景**：用户问设置页最底下的「思考强度」是谁的思考、决策模型是否需要思考、是不是
+冗余设定。
+
+**事实**：这个下拉只改**本插件发给决策端点**的 `think_mode`（`buildRequestBody` 固定
+字段），与宿主主模型完全无关；宿主回退模型的推理档位是另一个开关
+（`guardFallbackReasoningEffort`，在「自动审查回退」那一行）。它不冗余——对
+bamboonode/startlux 是真实延迟杠杆（never ≈1.9s、auto ≈7.2s）——但作用域被界面
+夸大了：7 个可选 provider 里只有 bamboonode 实测支持，systemone/SiliconFlow/custom
+未实测，「按需思考」在实践中常常等于思考，`always` 的质量收益没有任何实测数据。
+
+**决定**：
+
+1. 标签改为「决策模型思考」，hint 明说「只控制本插件发给决策端点的 think_mode，
+   不影响宿主主模型」，并指明回退模型的档位在「自动审查回退」。
+2. `PROVIDER_PRESETS` 增加 `thinkModeSupport: supported|unknown|unsupported` 并由
+   `providerCatalog()` 下发；界面按能力位分三套说明，`unsupported`（Perplexity /
+   OpenRouter）直接禁用下拉——留着能点等于承诺一个不存在的效果。
+3. 选项文案写实测：「auto｜由服务端决定（实测约 7.2s，比 never 慢）」
+   「always｜总是思考（约 +5s，质量收益未实测）」。
+4. 顺手修两处漂移：`buildServerProvider` 补回 `thinkMode`（此前服务端下发期间
+   `think_mode` 恒为 never，用户配的 always 静默失效）；`thinkMode` 纳入决策缓存的
+   精确键（否则切换档位后仍命中旧裁决，用户看不到变化）。
+
+## DEC-062 安全档位改名并修正事实：不问 / 少问 / 默认 / 多问（2026-11-15）
+
+**背景**：用户要求「优化安全档位的语言，调查各档位的事实效果」。勘察结论：原四档
+（自治/轻松/默认/谨慎）的标签与 summary 有多处与代码事实不符，其中三处会直接误导
+用户做出相反的选择。
+
+**事实修正**（以 `resolveTolerance` 与 listener 的顺序为准）：
+
+1. **「自治：从不询问用户」是错的**。`mandatory=requires_approval` 在档位判断**之前**
+   返回：审批可用时仍是 ask，不可用时直接 deny。原标签让用户以为选它就等于关掉所有
+   弹窗。同理「只有高风险调用会被直接拦下」也错：模型判 high 只是 ask，真正拦下的
+   是强制策略与宿主。
+2. **「轻松：只问最前 1%」是替换语义，不是默认的子集**。它用 `severity ≥ P99` 取代
+   模型判断，因此同一次调用可能「默认问、轻松不问」，也可能「默认不问、轻松问」；
+   冷启动阈值 0.60 覆盖 0.47%，比校准后的 1.1% 更安静——攒够样本是变吵，不是变安静。
+3. **「谨慎」是默认判断 ∪ 尾部带**，逐调用一定是默认的超集；但它的尾带在冷启动时
+   更窄（19.3% vs 25.1%），且端到端「多问」只在宿主真的会弹窗时可见（auto/never
+   会话里 ask 会被转成回退或拒绝）。
+4. `automaticReview`（宿主 auto 预设或 tolerance=autonomous）会把软 ask 交给回退
+   审查者：所以「不问」不是无人决策，而是「换一个审查者」，失败还按 deny 闭锁。
+
+**决定**：
+
+1. 标签改为 **不问 / 少问 / 默认 / 多问**（英：Don't ask / Ask less / Default /
+   Ask more），区块标题由「人工审核比例」改为「安全档位」，hint 明说「权限强制的人工
+   批准与拒绝不受档位影响；审批策略为永不询问时任何询问都会变成拒绝」。
+2. summary 重写为事实口径：不问=软性审查不弹窗、不按比例；少问=只按严重度尾部
+   （校准后约 1%，校准前固定 0.60）且替换默认判断，可能多问也可能少问；默认=沿用
+   模型判断；多问=默认之上再叠加严重度带（校准后约 25%，校准前固定 0.30）。
+3. 删除界面里「当前档位只问最前 N% 的调用」这种换算：冷启动不是分位数、按点分义不
+   同、权限强制升级根本不受档位影响，那个百分比会把用户带向相反的选择。
+4. 修掉一个连带缺陷：tolerance 把「放行」升级成 ask 时，`reason` 里是审计串
+   （`severity=0.500 ≥ 0.495`），旧实现把它直接当审批卡标题。现在 `reason` 保持
+   审计原文，审批卡改用固定双语 `displayReason`（「安全档位要求确认此次调用」），
+   标题里不再出现字段名与裸小数。
+
+
 ## DEC-061 深色主题下原生下拉弹层白底白字：选项自带底色 + 主题探针决定 color-scheme（2026-11-14）
 
 **背景**：用户报「插件页面在 dark mode 状态下 dropdown select 显示不好」，附截图：

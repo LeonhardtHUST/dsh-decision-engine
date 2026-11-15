@@ -116,6 +116,11 @@ const requiredKeys = [
   "skillPickConfidenceFloor",
   "cotProseFloor",
   "cotSameLanguageFloor",
+  // 日志分文件（DEC-064）：这三项决定记录往哪写、留多久；漏进 schema 的表现
+  // 是「配置页能选、落盘后读不回来」，与上面那些阈值同类，一并钉住。
+  "decisionsSplitMode",
+  "decisionsDateSeparator",
+  "decisionsRetentionDays",
 ];
 for (const key of requiredKeys) {
   check(`Config 含 ${key}`, defaults[key] !== undefined, `实际 ${String(defaults[key])}`);

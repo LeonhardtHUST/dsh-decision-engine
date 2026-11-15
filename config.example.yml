@@ -232,11 +232,14 @@ cooldownProbeMs: 10000
 # cooldownMs: 60000         # 首轮冷却时长（上限为其 10 倍）
 # failureThreshold: 3       # 连续失败多少次进入冷却
 
-# 思考模式（startlux 的 think_mode），三档：
-#   never  不思考——最省延迟（实测约 1.9s vs 7.2s），默认值，热路径首选
-#   auto   仅在模型自己判断需要时思考——折中
-#   always 总是思考——判断更充分，但每次工具调用约多等 5 秒
-# 该端点 output_tokens 恒为 0，思考开销不计入计量，所以省的主要是延迟。
+# 决策模型思考（startlux / System One 的 think_mode），三档：
+#   never  跳过思考——最省延迟（bamboonode 实测约 1.9s），默认值，热路径首选
+#   auto   由服务端决定——实测比 never 慢（约 7.2s），“按需”在实践中常常等于思考
+#   always 总是思考——每次约多等 5 秒；质量收益尚未实测
+# 它**只影响本插件发给决策端点的请求**，不改宿主主模型的推理档位（那个在
+# 「自动审查回退 › 推理档位」）。bamboonode/startlux 已实测支持；systemone、
+# 两个 SiliconFlow 与 custom 未实测（会照常发送，可能被忽略、不报错）；
+# Perplexity / OpenRouter 的公开 API 没有这个字段。
 thinkMode: never
 
 # ============================================================================
@@ -352,12 +355,20 @@ guardFallbackProvider: ""
 guardFallbackModel: ""
 guardFallbackReasoningEffort: ""
 
-# 四档只调整软审核摩擦。mandatory deny 全档不变；requires_approval 必须
-# 获得当前调用的宿主 allowed-once，无审批通道时拒绝，模型不能代批。
-# autonomous 将软 ask 交给上述 Fallback，不等于直接放行。
-# relaxed / default / cautious 保留既有软摩擦档位行为；旧默认裁决函数
-# decideGuardLegacy 仅用于回放，不接入生产权限路径。
-# severity 是排序分数，分位数就绪不代表危险概率已校准。
+# 安全档位（tolerance）：只调整**软性审查**多频繁地升级为询问。
+#   autonomous 不问  软性询问不弹窗、不按比例；权限强制的人工批准与拒绝照旧
+#   relaxed    少问  只按严重度尾部（校准后约最前 1%，校准前固定分 0.60）；
+#                    **替换**默认判断，因此同一次调用可能比默认多问也可能少问
+#   default    默认  沿用决策模型自己的判断（中/高风险、疑似注入、
+#                    不可逆且与任务无关会问）
+#   cautious   多问  默认判断之上再叠加严重度靠前一批（校准后约 25%，
+#                    校准前固定分 0.30），逐调用一定是默认的超集
+#
+# 四档都不改变权限边界：mandatory deny 全档不变；requires_approval 必须拿到
+# 本次调用的宿主 allowed-once，没有审批通道时拒绝，模型不能代批。
+# autonomous 也不是「关掉审查」：在宿主 auto 审查或本档下，软性 ask 会交给
+# 上面的 guardFallback 裁决（失败即拒绝），因此它可能比 default 更严。
+# severity 是排序分数，分位数就绪不代表危险概率已校准；冷启动比校准后更安静。
 # tolerance: default
 
 # ============================================================================
@@ -385,31 +396,47 @@ guardFallbackReasoningEffort: ""
 # model、裁决、耗时、token，展开还能看到发给决策模型的现场（state）、
 # 问题（questions）与它回来的回答（answers）。
 #
-# 数据只落在本机 $DSH_HOME/dsh-decision-engine/decisions.jsonl，
-# **不经过任何网络请求**，也**不进**上面的匿名统计。
+# 数据只落在本机 $DSH_HOME/dsh-decision-engine/logs/，**不经过任何网络请求**，
+# 也**不进**上面的匿名统计。
 #
-# 关掉之后**完全不写这个文件**（不采集内容、不占磁盘，标签页也随之消失）
+# 关掉之后**完全不写任何日志**（不采集内容、不占磁盘，标签页也随之消失）
 # ——不是「写了藏起来」。明细里可能有会话正文与命令片段，用户说不记录
 # 就该真的不落盘。
 #
 # decisionsTabEnabled: true      # 默认开启；**这是唯一的开关**（DEC-026 / DEC-029）：
 #                                开 = 记录明细，且**一定记录决策内容**；
-#                                关 = 完全不写 decisions.jsonl（见上），
+#                                关 = 完全不写日志（见上），
 #                                没有「只存元数据」的中间档。
 #
-# 下面两项是**高级档位**，配置页上没有对应的开关：需要时手改本文件。
-# （一个开关管「这个功能要不要用」就够了；「记多细、最多占多大」是要主动
-# 去调的旋钮，不该天天摆在配置页上。）
+# 日志怎么分文件（默认 date）。四选一：
+#   date       logs/date/2026-11-15.log        一天一个文件（默认；日期跟随本机时区）
+#   session    logs/session/<会话名>__<id 前 8>.log  一个会话一个文件
+#   workspace  logs/workspace/<工作区名>.log    同一工作区的会话写在一起
+#   single     logs/decisions.jsonl             全部追加到一个文件（升级前的行为）
+# 文件名会包含会话名或工作区名（先脱敏再截断）。
+# decisionsSplitMode: date
+# 日期分隔符（只在 date 模式生效）：- / _ / .
+# decisionsDateSeparator: "-"
+#
+# 老旧日志自动删除：启动时与每 6 小时清理一次。
+# 保留天数（0 = 不按天删，只受总量上限约束）；绝不删今天与正在写的分片。
+# decisionsRetentionDays: 30
+#
+# 下面几项是**高级档位**，配置页上没有对应的控件：需要时手改本文件。
+#
+# logs/ 目录的总量上限（字节，默认 64 MB）；按 mtime 从最旧的删起。
+# decisionsTotalMaxBytes: 67108864
+#
+# 单个分片的体积上限（字节）。到顶轮转成 <分片>.1（只留一代），
+# 因此磁盘占用最多约两倍单文件上限。
+# decisionsMaxBytes: 8388608   # 8 MB
 #
 # 单条内容的上限（字符）。超出时依次裁剪：工具参数预览 → 最近对话摘要 →
 # 整个 state；只有连「问题 + 回答」都装不下时才退回只留元数据。
-#
 # decisionsMaxContentChars: 4000
 #
-# 明细文件体积上限（字节）。到顶轮转成 decisions.jsonl.1（只留一代），
-# 因此磁盘占用最多约两倍上限。
-#
-# decisionsMaxBytes: 8388608   # 8 MB
+# 升级时旧 decisions.jsonl（与 .1）会被一次性迁移进 logs/date/ 并改名
+# .migrated 保留；迁移失败时旧文件仍可读，下次启动重试。
 
 # ============================================================================
 # 审批卡正文可读化（DEC-043）——审批卡上那块命令怎么显示

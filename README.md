@@ -32,10 +32,11 @@ main model acts.
 **Providers**: system one · bamboonode · 硅基流动 SiliconFlow (CN / Global) ·
 Perplexity · OpenRouter · custom base URL
 
-**Review tolerance**: autonomous · relaxed · default · cautious
+**Safety level (how often to ask)**: Don't ask · Ask less · Default · Ask more
+(none of the four changes permission-mandated approval or denial)
 
 **UI**: config page with collapsible sections · Decisions tab · stats ·
-readable approval card
+readable approval card · sharded decision logs (by date / session / workspace) with retention
 
 | Config page | Decisions tab |
 |---|---|

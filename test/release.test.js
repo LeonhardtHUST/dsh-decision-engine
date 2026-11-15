@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { verifyRelease } from "../scripts/verify-release.mjs";
-import { compareVersions, publicationPlan } from "../scripts/detect-release.mjs";
+import { compareVersions, publicationPlan, registryPublicationPlan, officialRegistryPlan } from "../scripts/detect-release.mjs";
 import { readPackageArchive, verifyPackageFiles } from "../scripts/verify-package.mjs";
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -53,7 +53,31 @@ test("升版检测遵守SemVer数值和预发布顺序，并拒绝非法输出",
   for (const version of ["01.0.0", "1.0.0-01", "1.0.0\nchanged=true", "1.0", undefined]) assert.throws(() => compareVersions(version, "1.0.0"));
 });
 
-test("预发布不能覆盖latest，dist-tag不能注入任意shell参数", () => {
+test("CI失败后修复提交会自动重试未发布版本，已上传版本跳过", () => {
+  const plan = publicationPlan(manifest, manifest);
+  const latest = { name: manifest.name, version: "1.9.1" };
+  assert.equal(registryPublicationPlan(plan, latest, false).reason, "retry-unpublished-version");
+  assert.equal(registryPublicationPlan(plan, latest, false).changed, true);
+  assert.equal(registryPublicationPlan(plan, { ...latest, version: manifest.version }, true).changed, false);
+  assert.throws(() => registryPublicationPlan(plan, { ...latest, version: "999.0.0" }, false));
+});
+
+test("npmjs探测只接受官方固定身份和404，不把网络故障当未发布", async () => {
+  const plan = publicationPlan({ ...manifest, version: "1.9.1" }, manifest);
+  const urls = [];
+  const ready = await officialRegistryPlan(plan, async (url) => {
+    urls.push(url);
+    return url.endsWith("/latest") ? { ok: true, json: async () => ({ name: manifest.name, version: "1.9.1" }) } : { ok: false, status: 404 };
+  });
+  assert.equal(ready.changed, true);
+  assert.ok(urls.every((url) => url.startsWith("https://registry.npmjs.org/")));
+  assert.equal((await officialRegistryPlan(plan, async () => ({ ok: true, json: async () => ({ name: manifest.name, version: manifest.version }) }))).changed, false);
+  await assert.rejects(officialRegistryPlan(plan, async () => ({ ok: false, status: 500 })));
+  await assert.rejects(officialRegistryPlan(plan, async () => { throw new Error("offline"); }));
+  await assert.rejects(officialRegistryPlan(plan, async () => ({ ok: true, json: async () => ({ name: "other", version: manifest.version }) })));
+});
+
+test("预发布不能覆盖latest，dist-tag不能注入任意shell参数",  () => {
   assert.throws(() => verifyRelease({ ...manifest, version: "2.0.0-rc.1" }, { NPM_DIST_TAG: "latest" }));
   assert.doesNotThrow(() => verifyRelease({ ...manifest, version: "2.0.0-rc.1" }, { NPM_DIST_TAG: "next" }));
   assert.throws(() => verifyRelease(manifest, { NPM_DIST_TAG: "latest; command" }));
@@ -78,7 +102,7 @@ test("CI保留完整验证，发布依赖验证成功且仅用OIDC无长期npm�
   for (const command of ["vp run verify", "vp run verify:guard", "vp run pack:release", "vp run verify:package"]) assert.ok(ci.includes(command));
   assert.match(publish, /needs: \[detect, verify\]/);
   assert.match(publish, /branches: \[main\]/);
-  assert.match(publish, /paths: \[package\.json\]/);
+  assert.doesNotMatch(publish, /paths:/);
   assert.match(publish, /needs\.detect\.outputs\.changed == 'true'/);
   assert.match(publish, /github\.event\.before/);
   assert.doesNotMatch(publish, /workflow_dispatch|tags:/);

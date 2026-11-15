@@ -7,7 +7,7 @@
 ## 工作流
 
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
-- `.github/workflows/publish.yml`：仅在 `main` push 涉及 `package.json` 时自动启动。检测 job 比较该 push 的 `before` 提交与当前提交的包名和版本：版本相同则跳过，非法或倒退版本直接失败，正常升版自动进入发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
+- `.github/workflows/publish.yml`：每次 `main` push 自动检测版本。先比较整个 push 的 `before` 与当前 manifest，拒绝错误包名、非法或倒退版本；再只读查询 npmjs。当前版本已上传则跳过；当前版本高于 npmjs latest 且未上传则进入完整验证及发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
 - 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
 - 当前 `1.9.2` 包含实录 MCP 误拒、附加元数据校验和 actor/preset 服务解析修复；边界见 `docs/auto-review-hotfix.md`。
 - checkout 与 setup-vp Action 固定到已核对的 commit SHA；不通过 `pull_request_target` 运行不可信 PR。
@@ -62,7 +62,7 @@ npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.2.tgz --re
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
-本地发布不伪造 GitHub provenance；在 GitHub Actions 中由工作流增加 `--provenance`。发布操作不可覆盖已存在的同版本；重跑已发布的 workflow 会因版本冲突停止，不自动递增重试，也不静默覆盖 latest。自动检测不自动修改版本或源码。
+本地发布不伪造 GitHub provenance；在 GitHub Actions 中由工作流增加 `--provenance`。发布操作不可覆盖已存在的同版本；已发布版本的后续提交会跳过发布。若升版后的 CI 失败，修复代码并推送 main 会自动重试仍未发布的版本，无需再升版或手动触发。npmjs 查询错误会停止，不能把网络或权限错误当成未发布。自动检测不自动修改版本或源码。
 
 ## 安装
 

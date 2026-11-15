@@ -42,11 +42,34 @@ export function publicationPlan(previous, current) {
   return { changed: comparison > 0, previousVersion: previous.version, version: current.version, distTag: current.version.includes("-") ? "next" : "latest" };
 }
 
+export function registryPublicationPlan(plan, latest, exists) {
+  assert.equal(latest?.name, "@leonhardthust/dsh-decision-engine", "Unexpected npmjs package identity");
+  if (exists) return { ...plan, changed: false, reason: "already-published" };
+  assert.ok(compareVersions(plan.version, latest.version) > 0, "Unpublished versions must be newer than npmjs latest");
+  return { ...plan, changed: true, previousVersion: latest.version, reason: plan.changed ? "version-increase" : "retry-unpublished-version" };
+}
+
+export async function officialRegistryPlan(plan, fetchFn = fetch) {
+  const base = "https://registry.npmjs.org/@leonhardthust%2fdsh-decision-engine";
+  const response = await fetchFn(`${base}/${encodeURIComponent(plan.version)}`, { signal: AbortSignal.timeout(20000) });
+  if (response.ok) {
+    const published = await response.json();
+    assert.equal(published.name, "@leonhardthust/dsh-decision-engine");
+    assert.equal(published.version, plan.version);
+    return { ...plan, changed: false, reason: "already-published" };
+  }
+  assert.equal(response.status, 404, "npmjs lookup failed; do not guess publication state");
+  const latest = await fetchFn(`${base}/latest`, { signal: AbortSignal.timeout(20000) });
+  assert.ok(latest.ok, "npmjs latest lookup failed");
+  return registryPublicationPlan(plan, await latest.json(), false);
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   assert.ok(process.argv[2], "Pass the manifest from the push's before commit");
   const previous = JSON.parse(await readFile(process.argv[2], "utf8"));
   const current = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
-  const plan = publicationPlan(previous, current);
+  const detected = publicationPlan(previous, current);
+  const plan = process.env.GITHUB_ACTIONS === "true" ? await officialRegistryPlan(detected) : detected;
   if (process.env.GITHUB_OUTPUT) {
     await appendFile(process.env.GITHUB_OUTPUT, `changed=${plan.changed}\nprevious_version=${plan.previousVersion}\nversion=${plan.version}\ndist_tag=${plan.distTag}\n`);
   }

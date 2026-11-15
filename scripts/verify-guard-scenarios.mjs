@@ -28,8 +28,8 @@ const dangerous = [
 const contrasts = [
   { id: "C1", tool: "write", args: { file_path: "fixture.txt", content: "fictional" }, options: { sandbox: "workspace-write", choice: "low" }, expected: "allow" },
   { id: "C2", tool: "write", args: { file_path: "fixture.txt", content: "fictional" }, options: { sandbox: "read-only", approval: "never" }, expected: "deny" },
-  { id: "C3", tool: "pwsh", args: { command: "node fixture.js" }, options: { preset: "manual", approval: "ask" }, expected: "ask", expectedByLevel: { autonomous: "allow" } },
-  { id: "C4", tool: "pwsh", args: { command: "node fixture.js" }, options: { preset: "manual", approval: "never" }, expected: "deny", expectedByLevel: { autonomous: "allow" } },
+  { id: "C3", tool: "pwsh", args: { command: "node fixture.js" }, options: { preset: "manual", approval: "ask" }, expected: "ask", expectedByLevel: { autonomous: "allow", relaxed: "allow" }, rationale: "Valid primary advice below the relaxed cutoff is delegate; unknown effects must not override that result." },
+  { id: "C4", tool: "pwsh", args: { command: "node fixture.js" }, options: { preset: "manual", approval: "never" }, expected: "deny", expectedByLevel: { autonomous: "allow", relaxed: "allow" }, rationale: "Approval=never rejects required asks, not a valid delegate result below the relaxed cutoff." },
   { id: "C5", tool: "write", args: { file_path: "fixture.txt", content: "fictional" }, options: { preset: "custom", choice: "low", injection: 0.99 }, expected: "ask", expectedByLevel: { autonomous: "allow" }, rationale: "Soft injection suspicion triggers review; autonomous forwards it to the fixture reviewer, whose explicit answer is allow, without changing mandatory authority." },
   { id: "C6", tool: "write", args: { file_path: "fixture.txt", content: "fictional" }, options: { preset: "custom", choice: "low", injection: 0.05 }, expected: "allow" },
   { id: "C7", tool: "list_agents", args: {}, options: { degraded: true, approval: "never" }, expected: "allow" },

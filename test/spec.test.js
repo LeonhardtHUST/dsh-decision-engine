@@ -25,6 +25,8 @@ const CFG = {
   delegateParallelFloor: 0.5,
   compactDistilledFloor: 0.6,
   compactVerbatinFloor: 0.6,
+  // 与 DEFAULTS 对齐：默认不允许只裁剪、跳过摘要（不可逆动作的保守门控）。
+  compactAllowPrune: false,
   turnStopMaxSteers: 1,
   turnStopClosedFloor: 0.6,
   turnStopUnfinishedFloor: 0.6,
@@ -249,10 +251,21 @@ test("分派：非法 scope 视为形状不合格", () => {
 
 // ---------------------------------------------------------------- 上下文压缩
 
-test("压缩：结论已落地时只裁剪不摘要", () => {
+test("压缩：开启 compactAllowPrune 后，结论落地时只裁剪不摘要", () => {
   // 实测：distilled 达 0.81 即「信息已落地」，中间段可丢。
+  // 但裁剪是不可逆的，所以只有运维显式打开 compactAllowPrune 才允许 prune。
   const parsed = POINT_SPECS.compact.parse({ distilled: noul(0.81), verbatim_needed: noul(0.26) });
-  assert.equal(POINT_SPECS.compact.decide(parsed, CFG).kind, "prune");
+  assert.equal(POINT_SPECS.compact.decide(parsed, { ...CFG, compactAllowPrune: true }).kind, "prune");
+});
+
+test("压缩：默认 compactAllowPrune=false 时绝不 prune（交给宿主摘要）", () => {
+  // 修之前：distilled ≥ 门槛就直接 prune。但 state 里只有「几条结果超长」
+  // 这个数字，模型看不到它们是什么、哪些结论真的保住了——用 0.95 的概率
+  // 授权不可逆删除，证据不足。默认必须走宿主摘要，信息至少还在。
+  const parsed = POINT_SPECS.compact.parse({ distilled: noul(0.95), verbatim_needed: noul(0.05) });
+  const action = POINT_SPECS.compact.decide(parsed, CFG);
+  assert.equal(action.kind, "summarize");
+  assert.match(action.reason, /compactAllowPrune=false/, "reason 要说明为什么没裁剪");
 });
 
 test("压缩：结论未落地时改走摘要", () => {
@@ -272,10 +285,12 @@ test("压缩：缺函数字段即视为形状不合格", () => {
 // ---------------------------------------------------------------- 轮次延续
 
 test("轮次：仍有未完成且续一轮有价值则继续", () => {
+  // 续轮的前提是边界已知：awaiting_user 必须回来且明确「不在等用户」。
   const parsed = POINT_SPECS.turnStop.parse({
     unfinished: noul(0.85),
     value: noul(0.8),
     closed: noul(0.1),
+    awaiting_user: noul(0.05),
   });
   assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "continue");
 });
@@ -296,6 +311,7 @@ test("轮次：unfinished 高时优先续轮（判据顺序不可颠倒）", () 
     unfinished: noul(0.83),
     value: noul(0.39),
     closed: noul(0.28),
+    awaiting_user: noul(0.05),
   });
   assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "continue");
 });
@@ -321,14 +337,19 @@ test("轮次：模型判出在等用户时让位（DEC-045 的边界）", () => 
   assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "defer");
 });
 
-test("轮次：awaiting_user 缺席不改变原有行为（老端点兼容）", () => {
+test("轮次：awaiting_user 缺席时禁止续轮（边界未知，保守收束）", () => {
+  // 修之前：缺这一问 = 判不出来 = fail-open，于是直接走 unfin 判据，
+  // 「你选 A 还是 B」这类轮次会拿到 unfin 0.9 / value 0.8 → continue，
+  // 等于在边界未知的情况下替用户把选择顶掉。现在缺这一问一律 stop。
   const parsed = POINT_SPECS.turnStop.parse({
     unfinished: noul(0.85),
     value: noul(0.8),
     closed: noul(0.1),
   });
   assert.equal(parsed.awaitingUser, undefined);
-  assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "continue");
+  const action = POINT_SPECS.turnStop.decide(parsed, CFG);
+  assert.equal(action.kind, "stop");
+  assert.match(action.reason, /awaiting_user 缺席/, "reason 要写明是边界未知导致收束");
 });
 
 // ---------------------------------------------------------------- 检索必要性
@@ -368,17 +389,39 @@ test("技能：低置信放行，不打断", () => {
   assert.equal(POINT_SPECS.skillPick.decide(parsed, CFG).kind, "allow");
 });
 
-test("技能：模型选 none 时放行", () => {
-  const parsed = POINT_SPECS.skillPick.parse({ best: choice("none", 0.95) });
+test("技能：模型选保留键 __none__ 时放行", () => {
+  const parsed = POINT_SPECS.skillPick.parse({ best: choice("__none__", 0.95) });
   assert.equal(POINT_SPECS.skillPick.decide(parsed, CFG).kind, "allow");
 });
 
-test("技能：候选清单里必须有 none 这个出口", () => {
+test("技能：旧端点回的 none 仍按出口放行（兼容）", () => {
+  // 出口键从 none 改成 __none__ 之后，旧端点/旧缓存仍可能回 "none"。
+  // 候选里没有名叫 none 的技能时，它只能表示「没有更匹配」。
+  const parsed = POINT_SPECS.skillPick.parse({ best: choice("none", 0.95) });
+  assert.equal(POINT_SPECS.skillPick.decide(parsed, CFG, { candidates: ["a", "b"] }).kind, "allow");
+});
+
+test("技能：候选里真叫 none 时不再被出口吞掉", () => {
+  // 修之前：出口键就是 none，与同名技能的 criteria 键冲突（后者覆盖前者），
+  // decide 也把任何 none 当成出口——那个技能永远拿不到 redirect。
+  const candidates = [{ name: "none", description: "真的存在这个技能" }, { name: "b", description: "db" }];
+  const built = POINT_SPECS.skillPick.build({ requested: "x", candidates });
+  assert.ok(Object.hasOwn(built.questions.best.criteria, "__none__"), "出口必须用保留键");
+  assert.equal(built.questions.best.criteria.none, "真的存在这个技能", "同名技能必须保住自己的候选键");
+  assert.deepEqual(built.state.candidates, ["none", "b"], "候选名字原样进 state");
+
+  const parsed = POINT_SPECS.skillPick.parse({ best: choice("none", 0.9) });
+  const action = POINT_SPECS.skillPick.decide(parsed, CFG, { candidates });
+  assert.equal(action.kind, "redirect", "候选里真有 none 时，选它应当指向那个技能");
+  assert.equal(action.suggest, "none");
+});
+
+test("技能：候选清单里必须有 __none__ 这个出口", () => {
   const built = POINT_SPECS.skillPick.build({
     requested: "x",
     candidates: [{ name: "a", description: "da" }, { name: "b", description: "db" }],
   });
-  assert.ok(Object.hasOwn(built.questions.best.criteria, "none"));
+  assert.ok(Object.hasOwn(built.questions.best.criteria, "__none__"));
 });
 
 // ---------------------------------------------------------------- 证据串

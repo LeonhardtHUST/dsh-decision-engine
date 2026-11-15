@@ -173,18 +173,23 @@ test("轮次：不在等用户时行为逐字不变", () => {
   assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "continue");
 });
 
-test("轮次：老端点不认识 awaiting_user 时不改变原有行为", () => {
-  // 答案里没有 awaiting_user = 判不出来 = fail-open，走原来的判据。
+test("轮次：老端点不认识 awaiting_user 时不再自动续轮", () => {
+  // 答案里没有 awaiting_user = 判不出「是不是在等用户」。
+  //
+  // 1.10.0 之前这里是 fail-open（按 unfin/closed 继续判，可能 continue），
+  // 但那等于在**无法确认用户没在等决定**时替用户把轮次撑下去——而「在等
+  // 用户」一直被本仓库列为最不该猜错的一类。现在改为保守收束：边界未知
+  // 就不续轮，把决定权交还主模型/用户。
   const parsed = POINT_SPECS.turnStop.parse({
     unfinished: noul(0.85),
     value: noul(0.8),
     closed: noul(0.1),
   });
   assert.equal(parsed.awaitingUser, undefined);
-  assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "continue");
+  assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "stop");
 });
 
-test("轮次：awaiting_user 形状不合格不影响其余答案的解析", () => {
+test("轮次：awaiting_user 形状不合格不影响其余答案的解析，但不据此续轮", () => {
   const parsed = POINT_SPECS.turnStop.parse({
     unfinished: noul(0.85),
     value: noul(0.8),
@@ -193,7 +198,7 @@ test("轮次：awaiting_user 形状不合格不影响其余答案的解析", () 
   });
   assert.ok(parsed !== undefined, "形状不合格的是边界那一问，不该作废整次裁决");
   assert.equal(parsed.awaitingUser, undefined);
-  assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "continue");
+  assert.equal(POINT_SPECS.turnStop.decide(parsed, CFG).kind, "stop");
 });
 
 // ------------------------------------------------------- 最关键的负向断言

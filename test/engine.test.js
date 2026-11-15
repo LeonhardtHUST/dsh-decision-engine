@@ -651,6 +651,9 @@ test("轮次：判 continue 时 steer 一次，且不再续第二次", async () 
         unfinished: { type: "noul", noul: 0.9 },
         value: { type: "noul", noul: 0.9 },
         closed: { type: "noul", noul: 0.1 },
+        // 续轮的前提是边界已知：awaiting_user 必须回来且明确「不在等用户」。
+        // 缺席时 spec.decide 会保守收束（不续轮），见 test/spec.test.js。
+        awaiting_user: { type: "noul", noul: 0.05 },
       },
       model: "m",
       latencyMs: 8,

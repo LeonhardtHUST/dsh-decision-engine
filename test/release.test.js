@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { verifyRelease } from "../scripts/verify-release.mjs";
+import { compareVersions, publicationPlan } from "../scripts/detect-release.mjs";
 import { readPackageArchive, verifyPackageFiles } from "../scripts/verify-package.mjs";
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const environment = { GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "LeonhardtHUST/dsh-decision-engine", GITHUB_EVENT_NAME: "push", GITHUB_REF: `refs/tags/v${manifest.version}`, RELEASE_TAG: `v${manifest.version}`, NPM_DIST_TAG: "latest" };
+const environment = { GITHUB_ACTIONS: "true", GITHUB_REPOSITORY: "LeonhardtHUST/dsh-decision-engine", GITHUB_EVENT_NAME: "push", GITHUB_REF: "refs/heads/main", RELEASE_VERSION: manifest.version, PREVIOUS_VERSION: "0.0.0", NPM_DIST_TAG: "latest" };
 
 function archive(name = "package/package.json", type = "0", content = "{}") {
   const header = Buffer.alloc(512);
@@ -27,11 +28,29 @@ test("发布身份、公开scope、仓库和版本tag一致", () => {
   }
 });
 
-test("不匹配tag、不可信仓库和手动非main发布均失败关闭", () => {
-  for (const changed of [{ RELEASE_TAG: "v0.0.0" }, { GITHUB_REPOSITORY: "someone/fork" }, { GITHUB_EVENT_NAME: "pull_request" }, { GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/other" }]) {
+test("非main、未升版、错误身份或手动触发均不能绕过自动发布条件", () => {
+  for (const changed of [{ RELEASE_VERSION: "0.0.0" }, { GITHUB_REPOSITORY: "someone/fork" }, { GITHUB_EVENT_NAME: "pull_request" }, { GITHUB_EVENT_NAME: "workflow_dispatch" }, { GITHUB_REF: `refs/tags/v${manifest.version}` }, { PREVIOUS_VERSION: manifest.version }, { PREVIOUS_VERSION: "999.0.0" }, { PREVIOUS_VERSION: undefined }]) {
     assert.throws(() => verifyRelease(manifest, { ...environment, ...changed }));
   }
-  assert.doesNotThrow(() => verifyRelease(manifest, { ...environment, GITHUB_EVENT_NAME: "workflow_dispatch", GITHUB_REF: "refs/heads/main" }));
+  assert.doesNotThrow(() => verifyRelease(manifest, environment));
+});
+
+test("main提交只有版本增加才发版，其他manifest变化只跳过", () => {
+  const previous = { ...manifest, version: "1.9.1" };
+  assert.deepEqual(publicationPlan(previous, { ...manifest, version: "1.9.2" }), { changed: true, previousVersion: "1.9.1", version: "1.9.2", distTag: "latest" });
+  assert.equal(publicationPlan(manifest, { ...manifest, description: "metadata only" }).changed, false);
+  assert.equal(publicationPlan(previous, { ...manifest, version: "1.9.2-rc.1" }).distTag, "next");
+  assert.throws(() => publicationPlan(manifest, { ...manifest, version: "0.0.1" }));
+  assert.throws(() => publicationPlan({ ...previous, name: "unrelated-package" }, manifest));
+});
+
+test("升版检测遵守SemVer数值和预发布顺序，并拒绝非法输出", () => {
+  for (const [older, newer] of [["1.9.2", "1.10.0"], ["1.9.2-rc.2", "1.9.2-rc.10"], ["1.9.2-1", "1.9.2-beta"], ["1.9.2-rc", "1.9.2-rc.1"], ["1.9.2-rc.1", "1.9.2"]]) {
+    assert.equal(compareVersions(newer, older), 1);
+    assert.equal(compareVersions(older, newer), -1);
+    assert.equal(compareVersions(newer, newer), 0);
+  }
+  for (const version of ["01.0.0", "1.0.0-01", "1.0.0\nchanged=true", "1.0", undefined]) assert.throws(() => compareVersions(version, "1.0.0"));
 });
 
 test("预发布不能覆盖latest，dist-tag不能注入任意shell参数", () => {
@@ -57,7 +76,12 @@ test("CI保留完整验证，发布依赖验证成功且仅用OIDC无长期npm�
   const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   const publish = readFileSync(new URL("../.github/workflows/publish.yml", import.meta.url), "utf8");
   for (const command of ["vp run verify", "vp run verify:guard", "vp run pack:release", "vp run verify:package"]) assert.ok(ci.includes(command));
-  assert.match(publish, /needs: verify/);
+  assert.match(publish, /needs: \[detect, verify\]/);
+  assert.match(publish, /branches: \[main\]/);
+  assert.match(publish, /paths: \[package\.json\]/);
+  assert.match(publish, /needs\.detect\.outputs\.changed == 'true'/);
+  assert.match(publish, /github\.event\.before/);
+  assert.doesNotMatch(publish, /workflow_dispatch|tags:/);
   assert.match(publish, /id-token: write/);
   assert.match(publish, /--provenance/);
   assert.ok(publish.includes('--registry "https://registry.npmjs.org/"'));

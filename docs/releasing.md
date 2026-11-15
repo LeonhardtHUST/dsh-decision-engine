@@ -1,14 +1,15 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.9.1`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.9.2`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
 ## 工作流
 
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
-- `.github/workflows/publish.yml`：版本 tag push 或 main 上手动运行。只有 `LeonhardtHUST/dsh-decision-engine` 可以进入发布；发布必须等待上述 CI 成功。
-- 手动运行必须填写与 manifest 完全一致的 `v1.9.1`。后续发版同步修改 manifest 与 tag。预发布版本不能覆盖 npm `latest`。
+- `.github/workflows/publish.yml`：仅在 `main` push 涉及 `package.json` 时自动启动。检测 job 比较该 push 的 `before` 提交与当前提交的包名和版本：版本相同则跳过，非法或倒退版本直接失败，正常升版自动进入发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
+- 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
+- 当前 `1.9.2` 包含实录 MCP 误拒、附加元数据校验和 actor/preset 服务解析修复；边界见 `docs/auto-review-hotfix.md`。
 - checkout 与 setup-vp Action 固定到已核对的 commit SHA；不通过 `pull_request_target` 运行不可信 PR。
 - 验证任务只有 `contents: read`；只有发布 job 有 `id-token: write`。发布 step 只使用 OIDC（trusted publishing），不再读取任何 npm token secret。代码 checkout 不保留 Git 凭据。此工作流不会自动修改版本、提交源码或推送 Git。
 
@@ -41,7 +42,6 @@ vp run verify
 vp run verify:guard
 vp run pack:release
 vp run verify:package
-$env:RELEASE_TAG = "v1.9.1"
 vp run verify:release
 ```
 
@@ -49,7 +49,7 @@ vp run verify:release
 
 `verify:package` 读取真正的 gzip/tar，检查 manifest、scoped 模块 id、bundle 引用、全部安全模块、locale、图表资源和相对 import。配置、凭据、日志、测试目录等不能进入包。输出文件数、大小和 SHA-512 integrity。
 
-当前 Windows 完整测试的 5 个基线失败及安全边界见 `bench/guard-revision/validation.md`（仅在源码仓库保留完整证据）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机专测通过不等同于 CI 发布成功。
+Windows 全量测试最近仍有 3 个既有 POSIX 文件权限断言失败；旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机专测通过不等同于 CI 发布成功。
 
 ## 手动发布相同的已验证 tarball
 
@@ -58,12 +58,12 @@ vp run verify:release
 授权及完整验证均满足后：
 
 ```powershell
-npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.1.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.9.2.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
-本地发布不伪造 GitHub provenance；在 GitHub Actions 中由工作流增加 `--provenance`。发布操作不可覆盖已存在的同版本；版本冲突必须停止，不自动递增重试。
+本地发布不伪造 GitHub provenance；在 GitHub Actions 中由工作流增加 `--provenance`。发布操作不可覆盖已存在的同版本；重跑已发布的 workflow 会因版本冲突停止，不自动递增重试，也不静默覆盖 latest。自动检测不自动修改版本或源码。
 
 ## 安装
 
-DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.9.1`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
+DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.9.2`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。

@@ -2,19 +2,8 @@ name: Publish npm
 
 on:
   push:
-    tags: ['v*']
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag matching package.json, for example v1.9.0'
-        required: true
-        type: string
-      dist_tag:
-        description: 'npm distribution tag'
-        required: true
-        default: latest
-        type: choice
-        options: [latest, next]
+    branches: [main]
+    paths: [package.json]
 
 permissions:
   contents: read
@@ -24,12 +13,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  detect:
+    if: github.repository == 'LeonhardtHUST/dsh-decision-engine'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+      previous_version: ${{ steps.version.outputs.previous_version }}
+      version: ${{ steps.version.outputs.version }}
+      dist_tag: ${{ steps.version.outputs.dist_tag }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Read manifest before this push
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        shell: bash
+        run: |
+          [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ && "$BEFORE_SHA" != 0000000000000000000000000000000000000000 ]]
+          git show "${BEFORE_SHA}:package.json" > "$RUNNER_TEMP/previous-package.json"
+      - name: Detect package version increase
+        id: version
+        run: node scripts/detect-release.mjs "$RUNNER_TEMP/previous-package.json"
+
   verify:
+    needs: detect
+    if: needs.detect.outputs.changed == 'true'
     uses: ./.github/workflows/ci.yml
 
   publish:
-    needs: verify
-    if: github.repository == 'LeonhardtHUST/dsh-decision-engine'
+    needs: [detect, verify]
+    if: needs.detect.outputs.changed == 'true' && github.repository == 'LeonhardtHUST/dsh-decision-engine'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -37,8 +53,9 @@ jobs:
       id-token: write
     env:
       VP_GIT_HOOKS: '0'
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
-      NPM_DIST_TAG: ${{ inputs.dist_tag || 'latest' }}
+      RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+      PREVIOUS_VERSION: ${{ needs.detect.outputs.previous_version }}
+      NPM_DIST_TAG: ${{ needs.detect.outputs.dist_tag }}
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -54,7 +71,5 @@ jobs:
       - run: vp run verify:release
       - run: vp run pack:release
       - run: vp run verify:package
-      # OIDC-only: npm exchanges the GitHub Actions identity token for a short-lived
-      # credential via the trusted publisher registered for this repository.
-      - name: Publish verified tarball
+      - name: Publish verified tarball using OIDC
         run: npm publish ./release-artifacts/*.tgz --registry "https://registry.npmjs.org/" --access public --provenance --tag "$NPM_DIST_TAG"

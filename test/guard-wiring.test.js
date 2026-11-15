@@ -16,11 +16,9 @@ test("auto依旧查询决策模型，软性人工决定交会话LLM而非跳过"
   } finally { await env.cleanup(); }
 });
 
-test("审批通道不存在（never）时，软性询问交给 guardFallback，而不是静默 deny", async () => {
-  // 实机缺陷（1.11.2 之前）：automaticReview 只认 permissionPreset === "auto"。
-  // 预设名是部署可配置的（read-only / workspace-write / danger-full-access），
-  // 用户配置 danger-full-access + never 时 auto 永远不出现，于是模型判 medium
-  // 的软 ask 被直接改成 deny，配置好的 guardFallback 完全没被使用。
+test("审批不可用时，本地已判安全的写操作不再被模型意见一票否决（审计 P0-1）", async () => {
+  // 1.13.0 现场：mandatory=safe 的工作区 write/edit 因模型 medium/high 被
+  // never 直接 deny。本地静态规则已确认边界，模型意见只是建议；现在交宿主。
   for (const reviewAction of ["allow", "deny"]) {
     const env = await fixture({
       preset: "danger-full-access",
@@ -31,16 +29,17 @@ test("审批通道不存在（never）时，软性询问交给 guardFallback，�
     });
     try {
       const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
-      assert.equal(decision.kind, reviewAction === "allow" ? "allow" : "deny", reviewAction);
+      assert.equal(decision.kind, "allow", reviewAction);
       assert.equal(env.modelCalls, 1, "主模型仍然给出自己的建议");
-      assert.equal(env.fallbackCalls, 1, "没有真人可问时应交给回退审查者");
-      assert.equal(env.records[0].audit.decisionSource, "fallback_model");
+      assert.equal(env.fallbackCalls, 0, "safe 不需要第二模型复核");
       assert.equal(env.records[0].audit.mandatory.status, "safe");
+      assert.equal(env.records[0].audit.reasonCode, "safe-local-operation-host-sandbox");
+      assert.equal(env.records[0].audit.decisionSource, "primary_model");
     } finally { await env.cleanup(); }
   }
 });
 
-test("never 下回退审查者失败仍 fail-closed", async () => {
+test("never 下非 safe 回退失败仍 fail-closed", async () => {
   const env = await fixture({
     preset: "danger-full-access",
     approval: "never",
@@ -49,13 +48,14 @@ test("never 下回退审查者失败仍 fail-closed", async () => {
     config: { tolerance: "default", guardFallback: "session" },
   });
   try {
-    const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+    // 外部网络工具 → mandatory=unknown，不属于 safe 直通；回退失败必须拒绝。
+    const { decision } = await env.run("mcp__fixture__query", { query: "fixture" });
     assert.equal(decision.kind, "deny");
     assert.equal(env.fallbackCalls, 1);
   } finally { await env.cleanup(); }
 });
 
-test("never + 显式 allow 回退策略放行软性询问，且不额外调用模型", async () => {
+test("never + safe：回退策略（allow/deny）不参与，直接交宿主", async () => {
   const env = await fixture({
     preset: "danger-full-access",
     approval: "never",
@@ -65,8 +65,8 @@ test("never + 显式 allow 回退策略放行软性询问，且不额外调用�
   try {
     const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
     assert.equal(decision.kind, "allow");
-    assert.equal(env.fallbackCalls, 0, "策略本身就是裁决，不该再叫模型");
-    assert.equal(env.records[0].audit.decisionSource, "fallback_policy");
+    assert.equal(env.fallbackCalls, 0, "safe 不进入回退链路");
+    assert.equal(env.records[0].audit.decisionSource, "primary_model");
   } finally { await env.cleanup(); }
 });
 
@@ -86,21 +86,21 @@ test("never + 少问档：medium 未达尾部时由档位直接降为放行", as
   } finally { await env.cleanup(); }
 });
 
-test("never 下高危与注入嫌疑不被回退软化", async () => {
-  // 高危 / 注入是硬性询问，不接受「再问一个模型」；即使用户配置了
-  // session 回退，也必须保持 deny。
+test("never 下 safe 的高危/注入意见同样不阻断（模型意见不能一票否决）", async () => {
+  // 审计 P0-1 的边界：mandatory=safe 时，即使模型给出 high 或注入达线，
+  // 本地规则已确认工作区内安全，交宿主沙箱；不由模型意见直接 deny。
   for (const options of [{ choice: "high" }, { choice: "low", injection: 0.99 }]) {
     const env = await fixture({
       preset: "danger-full-access",
       approval: "never",
       ...options,
-      reviewAction: "allow",
+      reviewAction: "deny",
       config: { tolerance: "default", guardFallback: "session" },
     });
     try {
       const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
-      assert.equal(decision.kind, "deny", JSON.stringify(options));
-      assert.equal(env.fallbackCalls, 0, "高危/注入不进入回退链");
+      assert.equal(decision.kind, "allow", JSON.stringify(options));
+      assert.equal(env.fallbackCalls, 0, "safe 不进入回退链");
     } finally { await env.cleanup(); }
   }
 });
@@ -246,5 +246,40 @@ test("中风险ask仍二次复核，本地未知豁免不覆盖软性询问", as
     assert.equal(env.fallbackCalls, 1, "medium 仍需独立复核");
     assert.equal(env.records[0].audit.baseAction, "ask");
     assert.equal(env.records[0].audit.decisionSource, "fallback_model");
+  } finally { await env.cleanup(); }
+});
+
+test("同会话同参重复调用在 120 秒内复用首次裁决（审计 P0-2）", async () => {
+  const env = await fixture({
+    preset: "danger-full-access",
+    approval: "never",
+    choice: "medium",
+    config: { tolerance: "default", guardFallback: "session" },
+  });
+  try {
+    const first = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+    const second = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+    assert.equal(first.decision.kind, "allow");
+    assert.equal(second.decision.kind, "allow", "同参数重试不应得到相反结论");
+    assert.equal(env.modelCalls, 1, "第二次应复用首次裁决，不再调用模型");
+    assert.equal(env.records[1].audit.reused, true);
+  } finally { await env.cleanup(); }
+});
+
+test("档位放行的 reasonCode 是稳定枚举，档位 note 只进 humanReason（审计 P0-3）", async () => {
+  // relaxed + medium：严重度 0.5 < 冷启动 0.6 → 档位把 ask 降成 delegate。
+  const env = await fixture({
+    preset: "danger-full-access",
+    approval: "never",
+    choice: "medium",
+    config: { tolerance: "relaxed", guardFallback: "session" },
+  });
+  try {
+    const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+    assert.equal(decision.kind, "allow");
+    const record = env.records[0].audit;
+    assert.equal(record.reasonCode, "tolerance-delegate");
+    assert.doesNotMatch(record.reasonCode, /[\u4e00-\u9fff]/, "reasonCode 不能是中文长句");
+    assert.match(record.humanReason, /tolerance=relaxed/);
   } finally { await env.cleanup(); }
 });

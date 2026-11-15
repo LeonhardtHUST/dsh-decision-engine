@@ -207,14 +207,16 @@ test("custom fallback model is the actual final judge without losing primary pro
 });
 
 for (const approval of ["ask", "never"]) {
-  test(`manual unknown with approval ${approval} never fabricates approval`, async () => {
+  test(`manual unknown with approval ${approval} 遵守审批通道（never 交回退，ask 真问）`, async () => {
     const fixture = await createReviewFixture({ preset: "manual", approval, choice: "medium" });
     try {
       const { decision } = await fixture.run("unrecognized_fixture_tool", {});
       assert.equal(fixture.classified.length, 1);
-      assert.equal(fixture.reviews.length, 0);
-      assert.equal(decision.kind, approval === "ask" ? "ask" : "deny");
-      assert.equal(fixture.sideEffects, 0);
+      // never：本地未知副作用不能靠模型一票通过，交给配置的回退审查者；
+      // ask：审批通道存在，直接问人（不额外叫回退模型）。
+      assert.equal(fixture.reviews.length, approval === "never" ? 1 : 0);
+      assert.equal(decision.kind, approval === "ask" ? "ask" : "allow");
+      assert.equal(fixture.sideEffects, approval === "ask" ? 0 : 1);
       assert.equal(fixture.records[0].audit.hostApprovalStatus, "unknown");
     } finally { await fixture.cleanup(); }
   });

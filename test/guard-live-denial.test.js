@@ -172,17 +172,21 @@ test("valid optional distribution remains available for severity and probability
 });
 
 for (const danger of ["high-risk", "injection"]) {
-  test(`${danger} cannot be softened by dropping malformed optional probabilities`, async () => {
+  test(`${danger} with malformed optional probabilities goes to fallback instead of silently passing`, async () => {
     const answers = signals(danger === "high-risk" ? "high" : "low", { low: -1, medium: 0, high: 2 });
     if (danger === "injection") answers.injection_suspect.noul = 0.99;
     const advisory = parseModelAdvisory(answers);
     assert.equal(advisory.status, "valid");
     assert.equal(decideModelAdvisory(advisory).kind, "ask");
-    const fixture = await denialFixture({ answers });
+    // 审计 P0-1：never 下非 safe 的 ask 交给回退审查者，由它做最终裁决。
+    // 这里让回退明确拒绝，验证链路确实经过第二模型且保持 fail-closed。
+    const fixture = await denialFixture({ answers, reviewAction: "deny" });
     try {
       const { decision } = await fixture.run("mcp__fixture__query", { query: "fixture" });
       assert.equal(decision.kind, "deny");
       assert.equal(fixture.executions, 0);
+      assert.equal(fixture.fallbackCalls, 1, "应经过回退审查者，而不是模型一票即拒");
+      assert.equal(fixture.primaryCalls, 1);
     } finally { await fixture.cleanup(); }
   });
 }

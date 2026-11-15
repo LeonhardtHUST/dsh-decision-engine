@@ -77,6 +77,49 @@ test("one-shot and diagnostic records cannot authorize recipient", async () => {
   }
 });
 
+test("空闲但可接续的同树子代理仍算本机成员（不依赖 live registry）", async () => {
+  // 实机缺陷（1.11.0）：`agents.get()` 只登记**活着的** Agent。给一个已经
+  // 空闲、但仍可接续的队友发消息时它返回 undefined，于是 hostLocal=false、
+  // downstreamIndependentApproval=unknown，一条普通队友消息被升级成人工审批
+  // （审批策略为 never 时直接拒绝）。
+  //
+  // 宿主自己的会话目录（listDescendants）已经证明「这个 id 是同一棵树里的
+  // 可接续成员」，那比「当前碰巧活着」更强；宿主投递时还会再校验一次身份与
+  // 可恢复性。因此这里不提供 agents 服务，仍应判为可安全委托。
+  const input = fixture({
+    subagents: {
+      rootOf: () => ({ id: "root" }),
+      resolveName: async () => "reviewer",
+      listDescendants: async () => [{ id: "reviewer", kind: "child", mode: "continuable", activity: "inactive" }],
+    },
+  });
+  const context = await buildTrustedContext({
+    ...input,
+    exec: { name: "send_message", arguments: { agent: "reviewer" } },
+    downstreamPolicyEnforced: true,
+  });
+  assert.equal(context.messageTarget.membership, "same-tree");
+  assert.equal(context.messageTarget.hostLocal, true);
+  assert.equal(context.messageTarget.downstreamIndependentApproval, true);
+  assert.equal(context.hostEnforcement.internalMessage, true);
+});
+
+test("同树但 global guard 未生效时仍不授予下游独立批准", async () => {
+  const input = fixture({
+    subagents: {
+      rootOf: () => ({ id: "root" }),
+      resolveName: async () => "reviewer",
+      listDescendants: async () => [{ id: "reviewer", kind: "child", mode: "continuable", activity: "inactive" }],
+    },
+  });
+  const context = await buildTrustedContext({
+    ...input,
+    exec: { name: "send_message", arguments: { agent: "reviewer" } },
+    // downstreamPolicyEnforced 缺省为 false
+  });
+  assert.equal(context.messageTarget.downstreamIndependentApproval, "unknown");
+});
+
 test("canonical host resolution defeats lexical in-workspace alias and records no enforcement claim", async () => {
   const input = fixture({
     sandboxPolicy: { resolve: () => ({ mode: "workspace-write", workspaceRoot: "/fixture" }) },

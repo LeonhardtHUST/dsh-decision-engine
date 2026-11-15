@@ -29,7 +29,7 @@
 **三态**：关闭 · 观察 · 生效
 
 **决策服务**：system one · bamboonode · 硅基流动 SiliconFlow（国内 / 国际）·
-Perplexity · OpenRouter · 自定义 base URL
+阿里云百炼 · TokenHub · Perplexity · OpenRouter · 自定义 base URL
 
 **安全档位（询问频率）**：不问 · 少问 · 默认 · 多问（四档都不改变权限强制的人工批准与拒绝）
 

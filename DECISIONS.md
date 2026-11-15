@@ -2,6 +2,58 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-073 「免费模型」从独立开关下沉为 provider 下拉的一项（2026-11-15）
+
+**背景**：用户要求「将免费模型从独立开关下沉到 dropdown menu 选项」。此前
+「使用免费模型」是连接方式分组最上面的一个 toggle，而「服务提供方」是它下面的
+一个下拉：两者表达同一件事（地址/模型/key 从哪来），却有两个入口，于是存在
+「开关开着但 provider 指向别处」「关掉开关后 provider 仍是上次的值」这类
+需要读代码才能解释的状态。
+
+**决定**：删除独立 toggle，在 provider 下拉最前面加一个虚拟选项
+`server`（文案「免费模型（服务端下发）」）。选中它 = `serverProvider: true`，
+provider 原值保留（取消免费模式时回到上次选的 provider）；选任何真实 provider =
+`serverProvider: false` 并写入该 provider。选中 `server` 时，「重新获取」按钮与
+下发状态/失败原因显示在同一行的 hint 里，而不是恢复成一个单独控件。
+
+**没有改的**：配置键仍是 `serverProvider`（已落盘的契约），服务端语义与
+`server-config.js` 的三条红线（下发值只存在内存、不落盘、不可用时回落本地）都没变。
+这纯粹是入口合并，老配置升级后行为逐字不变。
+
+## DEC-072 补齐阿里云百炼与 TokenHub 决策预设（2026-11-15）
+
+**背景**：用户要求查阅阿里云百炼与腾讯云 TokenHub 的决策服务文档，把预设补进
+插件并暴露到设置页。
+
+**文档核对结果**：
+
+- **阿里云百炼**确实提供决策模型：`POST /compatible-mode/v1/systemone`，
+  `model` 必填 `decision-model-preview`，鉴权 `Bearer $DASHSCOPE_API_KEY`；
+  Endpoint 是 workspace 专用域名：
+  `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/systemone`
+  或 `ap-southeast-1`。协议与本插件的 systemone 完全相同。
+- **腾讯云 TokenHub**（tokenhub.tencentmaas.com）官方文档只有 OpenAI / Anthropic
+  兼容的文本、图像、视频、3D 接口，**没有决策 / System One 端点**。带 Jev 决策
+  模型的是 **tokenhub.com**（TypeSafe）的同名产品，API 为
+  `https://us-api.tokenhub.com/v1/systemone`。两者同名但不是同一个东西。
+
+**决定**：
+
+1. 新增 `bailian` 预设：因为 workspace 是域名的一部分，`baseUrl` 不能写死，
+   新增 `baseUrlFrom(cfg)` 钩子，由 `bailianWorkspaceId` + `bailianRegion`
+   现拼。workspace 只接受 `[A-Za-z0-9_-]+`（它会进入 hostname，带斜杠/点会拼出
+   另一个域名）；缺 workspace 时 provider 判无效并给出「需要 Workspace ID」，
+   而不是发一条空地址请求。设置页在选中百炼时显示 Workspace ID 与地域两格。
+2. 新增 `tokenhub` 预设，指向 tokenhub.com 的 `/v1/systemone`，默认模型
+   `jev-latest`。hint 里写明「腾讯云 TokenHub 没有决策端点」，避免用户拿腾讯云
+   的 key 打过来得到 401。
+3. `providerCatalog` 对动态地址预设下发 `dynamicBaseUrl / baseUrlTemplate /
+   workspaceField / regionField / regions`，界面据此渲染两格而不硬编码百炼。
+4. 隐私/安全边界不变：两个新预设各自的 key 字段与变量名独立
+   （`DASHSCOPE_API_KEY` / `TOKENHUB_API_KEY`），不复用 bamboonode 的字段——
+   那会导致切 provider 时拿错账号的 key。
+
+
 ## DEC-071 审批通道为 `never` 时，软性询问交给 `guardFallback` 而不是静默 deny（2026-11-15）
 
 **背景**：DSH 的审批策略只有 `ask` / `never` 两档，`never` 的官方语义是「不询问任何人，

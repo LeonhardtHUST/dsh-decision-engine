@@ -30,7 +30,7 @@ main model acts.
 **Modes**: off · observe · enforce
 
 **Providers**: system one · bamboonode · 硅基流动 SiliconFlow (CN / Global) ·
-Perplexity · OpenRouter · custom base URL
+Alibaba Bailian · TokenHub · Perplexity · OpenRouter · custom base URL
 
 **Safety level (how often to ask)**: Don't ask · Ask less · Default · Ask more
 (none of the four changes permission-mandated approval or denial)

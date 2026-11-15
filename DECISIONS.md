@@ -2,6 +2,34 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-071 审批通道为 `never` 时，软性询问交给 `guardFallback` 而不是静默 deny（2026-11-15）
+
+**背景**：DSH 的审批策略只有 `ask` / `never` 两档，`never` 的官方语义是「不询问任何人，
+每个 ask 确定性 rejected」。插件此前的 `automaticReview` 只认 `permissionPreset === "auto"`
+（实验性 Auto review integration 的保留预设名），而预设名是部署可配置的——本机就是
+`read-only` / `workspace-write` / `danger-full-access`，且没装 Auto review，`auto` 永远不
+出现。于是「默认 / 少问 + never」这个合法组合下，模型判 medium 的软 ask 会在
+`action.kind === "ask" && approvalPolicy === "never"` 分支被直接改成 deny，用户配置的
+`guardFallback` 完全没被使用。
+
+**决定**：该分支改为：**有效模型的软性 ask** 交给 `runFallback()`；其余保持 deny。
+「软性」的精确边界（由现有安全测试钉住）：
+
+- `advisory.status === "valid"`；
+- `mandatory.status !== "unknown"`——工具副作用未判定的调用不是软性询问，`manual unknown
+  + never` 不得伪造批准；
+- `risk.choice !== "high"` 且注入嫌疑低于门槛——高危/注入不接受「再问一个模型」的软化；
+- 只覆盖 `risk.choice === "medium"` 或档位确实把放行升级成询问（`tolerated.changed`）。
+
+回退链自身仍 fail-closed：`guardFallback = session/model` 且模型不可用/超时/回答非法 →
+deny；显式 `allow` → delegate、`deny` → deny。`automaticReview` **不**加 never，因为那个
+开关同时决定「模型失效/答案畸形/异常」是否走回退，而失败链路必须保持失败关闭。
+
+**结果**：`danger-full-access + never` 下，普通本地写入被模型判 medium 时不再硬拦：
+默认档交给已配置的回退审查者，少问档在尾部未达线时由档位直接放行；高危、注入、
+未知副作用与强制权限约束仍然 deny，且不经过回退模型。
+
+
 ## DEC-070 空闲队友的消息不再被误判为「接收方权限未核验」（2026-11-15）
 
 **现象**：决策历史里出现一条 `send_message` 记录：`effect=internal_message`、

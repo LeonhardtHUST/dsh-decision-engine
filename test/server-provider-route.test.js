@@ -44,6 +44,7 @@ const LOCAL_KEY = "sk-LOCAL-CANARY-aabbccdd11223344";
  */
 function setup(options = {}) {
   const home = mkdtempSync(join(tmpdir(), "dsh-servercfg-"));
+  const originalHome = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
 
   const decisionCalls = [];
@@ -121,6 +122,8 @@ function setup(options = {}) {
     credPath: join(home, ".credentials.yaml"),
     restore() {
       globalThis.fetch = originalFetch;
+      if (originalHome === undefined) delete process.env.DSH_HOME;
+      else process.env.DSH_HOME = originalHome;
       rmSync(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 30 });
     },
   };

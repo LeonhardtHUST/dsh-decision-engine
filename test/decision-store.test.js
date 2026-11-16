@@ -39,7 +39,9 @@ import {
   truncateContent,
   DECISIONS_FILE_NAME,
 } from "../lib/decision-store.js";
-import { dateKeyOf } from "../lib/decision-log.js";
+import { compactRecord, dateKeyOf, expandRecord } from "../lib/decision-log.js";
+import { createGuardAudit } from "../lib/guard/audit.js";
+import { PLUGIN_VERSION } from "../lib/plugin-meta.js";
 
 /**
  * 直接往明细文件里写原始记录（模拟**本次修复之前**落盘的老数据）。
@@ -84,6 +86,50 @@ function record(over = {}) {
 }
 
 // ------------------------------------------------------------------ 记录体
+
+test("new decision and audit records share plugin metadata and retain their own schemas", () => {
+  const entry = buildDecisionRecord();
+  const audit = createGuardAudit();
+  assert.equal(entry.pluginVersion, PLUGIN_VERSION);
+  assert.equal(entry.pluginVersion, audit.pluginVersion);
+  assert.equal(entry.schemaVersion, entry.v);
+  assert.equal(entry.v, 1);
+  assert.deepEqual(expandRecord(compactRecord(entry)), JSON.parse(JSON.stringify(entry)));
+});
+
+test("compact and expand preserve historical versions without attributing legacy records to this plugin", () => {
+  const legacy = { v: 1, seq: 1, ts: "2026-11-03T08:00:00.000Z", sessionId: "legacy", point: "authorize" };
+  const expanded = expandRecord(compactRecord(legacy));
+  assert.equal(Object.hasOwn(expanded, "pluginVersion"), false);
+  assert.equal(Object.hasOwn(expanded, "schemaVersion"), false);
+  const versioned = { ...legacy, pluginVersion: "0.0.0-fixture", schemaVersion: "fixture-schema" };
+  const restored = expandRecord(compactRecord(versioned));
+  assert.equal(restored.pluginVersion, "0.0.0-fixture");
+  assert.equal(restored.schemaVersion, "fixture-schema");
+});
+
+test("store reads new and legacy version metadata together without rewriting history", async () => {
+  const { dir, cleanup } = tempDir();
+  try {
+    const store = new DecisionStore({ dir, getSplitMode: () => "single" });
+    const legacy = { v: 1, seq: 1, ts: "2026-11-03T08:00:00.000Z", sessionId: "session-1", point: "authorize" };
+    const entry = record({ ts: "2026-11-04T08:00:00.000Z" });
+    store.record(entry);
+    await store.flush();
+    appendFileSync(store.path, `${JSON.stringify(legacy)}\n`, "utf8");
+    const raw = readFileSync(store.path, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    assert.equal(raw[0].pluginVersion, PLUGIN_VERSION);
+    assert.equal(raw[0].schemaVersion, entry.v);
+    const page = await store.readForSession("session-1");
+    assert.equal(page.total, 2);
+    assert.equal(Object.hasOwn(page.entries[0], "pluginVersion"), false);
+    assert.equal(Object.hasOwn(page.entries[0], "schemaVersion"), false);
+    assert.equal(page.entries[1].pluginVersion, entry.pluginVersion);
+    assert.equal(page.entries[1].schemaVersion, entry.schemaVersion);
+  } finally {
+    cleanup();
+  }
+});
 
 test("记录体带上会话归属与全部关键字段", () => {
   const entry = buildDecisionRecord({

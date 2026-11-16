@@ -2,6 +2,18 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-081 发布 1.16.0：降低误审查成本并收紧授权时限（2026-11-16）
+
+本次发布收口审批日志审计剩余的结构问题：
+
+- shell 只读命令和内部生命周期工具只有在严格参数契约下才归为本地/宿主托管操作；PowerShell 持久化进程缺少 fresh/no-profile 证明时继续保持 unknown，不因命令名放行。
+- primary 重试与 fallback 审查共享授权总预算，默认沿用 `min(2 × timeoutMs, 30s)`；超时对 unknown fail-closed，对 safe 交宿主沙箱，强制审批仍在模型前早退。
+- 审计和决策明细加入 `pluginVersion` 与 schema 版本；旧日志保留原字段，不回填当前版本。
+- listener 抽出 pipeline 纯函数，记忆裁决、超时裁决和模型状态汇总保持可单测。
+- 配置模板新增 `guardDeadlineMs`，默认 `0` 表示沿用现有模型预算。
+
+验证：`vp exec node --test --test-isolation=none --test-timeout=60000 test/*.test.js` 全部 **1190 项通过**；接线与 guard 场景验证通过。未读取凭据，未修改全局 DSH 配置。
+
 ## DEC-080 审批日志续审计：记忆复用保留来源、never 安全写不再问模型（2026-11-16）
 
 对照 `docs/audits/2026-11-16-approval-log-structure.md` 修 P0-1 与 P1-2。

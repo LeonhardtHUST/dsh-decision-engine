@@ -24,6 +24,12 @@ import { tmpdir } from "node:os";
 import { apply } from "../lib/index.js";
 import { pickRefValue } from "../lib/credentials.js";
 
+const ORIGINAL_DSH_HOME = process.env.DSH_HOME;
+test.afterEach(() => {
+  if (ORIGINAL_DSH_HOME === undefined) delete process.env.DSH_HOME;
+  else process.env.DSH_HOME = ORIGINAL_DSH_HOME;
+});
+
 /** 造隔离环境；返回 home、configPath、credentialsPath 与已注册的接口表。 */
 function setup({ seedCredentials } = {}) {
   const home = mkdtempSync(join(tmpdir(), "dsh-save-"));

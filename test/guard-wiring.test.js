@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { createGuardFixture as fixture } from "./helpers/guard-fixture.js";
+import { PLUGIN_VERSION } from "../lib/plugin-meta.js";
 
 test("auto依旧查询决策模型，软性人工决定交会话LLM而非跳过", async () => {
   const env = await fixture();
@@ -317,6 +318,52 @@ test("复用失败裁决不改写 failed 状态（模型失败率不能被洗掉
     assert.equal(env.records[1].audit.modelEvaluation.status, "failed");
     assert.equal(env.records[1].audit.reasonCode, "advisory-failed-unknown-effect");
     assert.equal(env.records[1].audit.cacheStatus, "hit");
+  } finally { await env.cleanup(); }
+});
+
+test("阶段拆分后复用裁决保留版本、回退、基础动作和下游拒绝", async () => {
+  for (const options of [
+    { guardFallback: "session", reviewAction: "allow", expected: "allow" },
+    { guardFallback: "session", reviewAction: "deny", expected: "deny" },
+    { guardFallback: "allow", expected: "allow" },
+    { guardFallback: "deny", expected: "deny" },
+  ]) {
+    const env = await fixture({ approval: "never", choice: "medium", reviewAction: options.reviewAction, config: { tolerance: "default", guardFallback: options.guardFallback } });
+    try {
+      const args = { query: "fixture-pipeline" };
+      const first = await env.run("mcp__fixture__query", args);
+      const second = await env.run("mcp__fixture__query", args);
+      assert.equal(first.decision.kind, options.expected);
+      assert.equal(second.decision.kind, options.expected);
+      assert.equal(env.modelCalls, 1);
+      assert.equal(env.fallbackCalls, options.guardFallback === "session" ? 1 : 0);
+      const original = env.records[0].audit;
+      const reused = env.records[1].audit;
+      assert.equal(reused.pluginVersion, PLUGIN_VERSION);
+      assert.equal(reused.pluginVersion, original.pluginVersion);
+      assert.equal(reused.reused, true);
+      assert.equal(reused.cacheStatus, "hit");
+      assert.equal(reused.reasonCode, original.reasonCode);
+      assert.equal(reused.decisionSource, original.decisionSource);
+      assert.equal(reused.baseAction, "ask");
+      assert.deepEqual(reused.fallback, original.fallback);
+      assert.equal(reused.fallback.fallback, options.guardFallback);
+      assert.equal(reused.modelEvaluation.primary.status, "cache_hit");
+      assert.equal(reused.mandatory.status, "unknown");
+      assert.equal(Boolean(env.guard(second.exec)), options.expected === "deny");
+    } finally { await env.cleanup(); }
+  }
+});
+
+test("阶段拆分不让可用审批通道复用旧裁决", async () => {
+  const env = await fixture({ preset: "custom", approval: "ask", choice: "low" });
+  try {
+    await env.run("mcp__fixture__query", { query: "fixture-pipeline" });
+    await env.run("mcp__fixture__query", { query: "fixture-pipeline" });
+    assert.equal(env.modelCalls, 2);
+    assert.equal(env.records[1].audit.reused, false);
+    assert.equal(env.records[1].audit.cacheStatus, "miss");
+    assert.equal(env.records[1].audit.reasonCode, env.records[0].audit.reasonCode);
   } finally { await env.cleanup(); }
 });
 

@@ -1,8 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hashSummary, createGuardAudit, joinHostOutcome } from "../lib/guard/audit.js";
+import { readFileSync } from "node:fs";
+import { hashSummary, createGuardAudit, GUARD_AUDIT_VERSION, joinHostOutcome } from "../lib/guard/audit.js";
+import { PLUGIN_VERSION, recordVersionFields } from "../lib/plugin-meta.js";
 
 const record = () => createGuardAudit({ callId: "fixture-call", toolName: "write", args: { content: "secret-fixture-token" }, context: { sessionId: "fixture-session", originalUserGoal: "private fixture goal" } });
+
+test("audit records the installed plugin version without changing its schema", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const audit = record();
+  assert.equal(PLUGIN_VERSION, manifest.version);
+  assert.equal(audit.pluginVersion, manifest.version);
+  assert.equal(audit.schemaVersion, GUARD_AUDIT_VERSION);
+  assert.deepEqual(recordVersionFields(GUARD_AUDIT_VERSION), {
+    pluginVersion: manifest.version,
+    schemaVersion: GUARD_AUDIT_VERSION,
+  });
+  const joined = joinHostOutcome(audit, { callId: "fixture-call", sessionId: "fixture-session", result: { isError: false } });
+  assert.equal(joined.pluginVersion, audit.pluginVersion);
+  assert.equal(joined.schemaVersion, audit.schemaVersion);
+});
 
 test("audit stores hashes rather than arguments, user goal or raw model bodies", () => {
   const audit = record();

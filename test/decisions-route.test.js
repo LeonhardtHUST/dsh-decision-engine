@@ -23,6 +23,12 @@ import { tmpdir } from "node:os";
 import { apply, createSessionMetaResolver } from "../lib/index.js";
 import { dateKeyOf } from "../lib/decision-log.js";
 
+const ORIGINAL_DSH_HOME = process.env.DSH_HOME;
+test.afterEach(() => {
+  if (ORIGINAL_DSH_HOME === undefined) delete process.env.DSH_HOME;
+  else process.env.DSH_HOME = ORIGINAL_DSH_HOME;
+});
+
 /**
  * 造一个隔离环境。
  *

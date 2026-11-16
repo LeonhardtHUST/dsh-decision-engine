@@ -117,15 +117,23 @@ for (const { label, value } of optionalDistributions) {
   });
 
   for (const toolName of ["edit", "mcp__fixture__query"]) {
-    test(`manual never ${toolName} does not become failed review from ${label} optional distribution`, async () => {
+    test(`manual never ${toolName} keeps allow with ${label} optional distribution`, async () => {
       const fixture = await denialFixture({ answers: signals("low", value) });
       try {
         const args = toolName === "edit" ? { file_path: "fixture.txt", old_string: "before", new_string: "after" } : { query: "fixture" };
         const { decision } = await fixture.run(toolName, args);
         assert.equal(decision.kind, "allow");
-        assert.equal(fixture.primaryCalls, 1);
+        if (toolName === "edit") {
+          // safe 写不再问模型（审计 11-16 P1-2），所以可选的畸形分布根本
+          // 走不到 advisory 解析；这条分支只钉「模型失败不能拒绝 safe 写」。
+          assert.equal(fixture.primaryCalls, 0);
+          assert.equal(fixture.details[0].scores.reasonCode, "safe-local-operation-host-sandbox");
+          assert.equal(fixture.details[0].scores.decisionSource, "local_policy");
+        } else {
+          assert.equal(fixture.primaryCalls, 1);
+          assert.equal(fixture.details[0].scores.modelEvaluation.primary.status, "completed");
+        }
         assert.equal(fixture.fallbackCalls, 0);
-        assert.equal(fixture.details[0].scores.modelEvaluation.primary.status, "completed");
         assert.equal(fixture.details[0].degraded, false);
         assert.equal(fixture.executions, 1);
       } finally { await fixture.cleanup(); }

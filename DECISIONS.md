@@ -2,6 +2,47 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-080 审批日志续审计：记忆复用保留来源、never 安全写不再问模型（2026-11-16）
+
+对照 `docs/audits/2026-11-16-approval-log-structure.md` 修 P0-1 与 P1-2。
+
+**P0-1 记忆复用不再丢来源**
+11-16 日志里 9 条 `reused` 记录全部写成 `decisionSource=local_policy`、
+`modelEvaluation=not_requested`，其中 4 条的 `reasonCode` 还是 `unclassified`。
+根因是记忆在 `finish()` 归一化之前落库：命中后只回填 `kind/reason`，
+`primary`/`secondary` 仍是空闲态。另外 `unclassified` 本身在 `MESSAGES`
+词条表里，`guardOutcomeMessage` 的 explicit 判断把它当权威码原样返回，
+本地化也被跳过。现在：
+
+- 写记忆前先 `guardOutcomeMessage(action, mandatory)`，存归一化后的裁决 +
+  `primary`/`secondary`/`decisionSource`/`degradedReason`；
+- 命中时恢复来源，把模型评估标成 `cache_hit` 并清空延迟（这次没有网络往返），
+  `reused: true` 照旧；
+- `unclassified` 文案移到独立常量，不再进 `MESSAGES`；未知 reason 仍落
+  `unclassified`，原文进 `humanReason`；
+- 审计记录补 `reasonCode` 与 `reused` 两个稳定字段：此前遥测 audit 只带
+  `decisionSource`，复用与归一化结果在遥测侧读不到。`failed` 的模型评估
+  在复用时保持 `failed`（不洗成 `cache_hit`），延迟照旧不重复计。
+
+**P1-2 never 下的安全写不再调用主模型**
+DEC-076 写的是「`mandatory=safe` → 直接 `delegate`」，但代码仍先调主模型。
+11-16 的数据确认这一步在 `never` + 非自动审查下既不能批准也不能阻止：
+`ask` 会被改回 `delegate`，模型失败反而走 `advisory-failed-unknown-effect`
+把合法写拒掉（今天约 870 次调用、1.16M tokens 没有改变任何结果）。现在
+`enforce` + `never` + 非自动审查 + `mandatory=safe` + `write_workspace`
+且目标在工作区内时，直接 `delegate`，reasonCode
+`safe-local-operation-host-sandbox`。限定条件缺一不可：有审批通道时模型
+`ask` 仍会弹卡；`automaticReview` 为真时 `ask` 会进回退审查，回退可能真拒绝；
+observe 模式仍需要模型意见做对照；`sandbox_permissions` 会把 effect 变成
+`privileged`，走不到这条路径。
+
+**验证**：`vp run test` 1158 项通过（含新增的未知 reason 归一化、复用来源、
+复用失败保真与安全写跳过断言），`scripts/verify-wiring.mjs` 通过。未改配置、
+未发布。
+
+**未做**：shell 只读命令族契约、授权 deadline、记录 schema 收敛与
+`pluginVersion`（见审计 P1-1/P1-4/P2-1）；这些需要单独一次改动与基准数据。
+
 ## DEC-079 发布 1.15.1：移除匿名统计与修正审批不可用提示（2026-11-15）
 
 用户明确要求发布本次修复版。版本从 `1.15.0` 升为 `1.15.1`，内容为

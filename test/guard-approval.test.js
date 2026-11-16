@@ -31,6 +31,20 @@ test("强制审批的拒绝区分策略禁止与通道不可用，不把 unknown
   for (const status of ["safe", "unknown", "deny"]) assert.equal(mandatoryApprovalDecision({ status }), undefined);
 });
 
+test("未知 reason 不冒充词条：落 unclassified，原文进 humanReason", () => {
+  // `unclassified` 是兜底结果，不是可命名的原因。它若留在 MESSAGES 里，
+  // guardOutcomeMessage 会把它当显式码原样返回，复用时连本地化都会跳过
+  // （2026-11-16 审计 P0-1）。
+  const first = guardOutcomeMessage({ kind: "ask", reason: "mystery-reason" });
+  assert.equal(first.reasonCode, "unclassified");
+  assert.equal(first.humanReason, "mystery-reason");
+  assert.equal(typeof first.displayReason?.zh, "string");
+  assert.ok(first.displayReason.zh.length > 0);
+  const again = guardOutcomeMessage(first);
+  assert.equal(again.reasonCode, "unclassified");
+  assert.equal(again.humanReason, "mystery-reason");
+});
+
 const unavailableCases = [
   { label: "never", configure(services) { services.approval.overrideOf = () => "never"; }, reason: "approval-policy-never", code: "DECISION_ENGINE_APPROVAL_DISABLED" },
   { label: "缺少审批服务", configure(services) { delete services.approval; }, reason: "approval-channel-unavailable", code: "DECISION_ENGINE_APPROVAL_UNAVAILABLE" },

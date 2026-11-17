@@ -1,6 +1,6 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.3`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.4`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
@@ -9,7 +9,8 @@
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
 - `.github/workflows/publish.yml`：每次 `main` push 自动检测版本。先比较整个 push 的 `before` 与当前 manifest，拒绝错误包名、非法或倒退版本；再只读查询 npmjs。当前版本已上传则跳过；当前版本高于 npmjs latest 且未上传则进入完整验证及发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
 - 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
-- 当前 `1.16.3` 包含 DEC-086/087：请求与协议故障不再缓存，正常模型裁决仍可复用；新增脱敏回退失败分类，不重复累计复用的历史耗时；引入上游模型平铺截图，暂缓含 D1/cron 的站点部署迁移。
+- 当前 `1.16.4` 包含 DEC-088：`write`/`edit`/`bash`/`pwsh` 携带与当前有效沙箱相同的 `sandbox_permissions` 时不再被误判为提权，宿主对这一组合本就不升级权限、也不发起审批；拒绝提示补一行实际触发约束，错误码与审计字段不变。更宽、更窄、无效或无法核实的请求，以及其他工具携带的同名字段，仍按原有保守规则处理。
+- `1.16.3` 包含 DEC-086/087：请求与协议故障不再缓存，正常模型裁决仍可复用；新增脱敏回退失败分类，不重复累计复用的历史耗时；引入上游模型平铺截图，暂缓含 D1/cron 的站点部署迁移。
 - `1.16.2` 包含 DEC-084/085：为 `send_message` 增加脱敏核验阶段与失败原因审计，补齐 sibling、child→root、深层成员和负向审批回归矩阵；通信放行条件不变。
 - `1.16.1` 包含 DEC-082：越界 write/edit 按配置交给宿主，autonomous + never + safe 写不再被 fallback 误拒；never 阻断保留原始 mandatory 原因，safe 软拒绝在有审批通道时转为宿主 ask。
 - `1.16.0` 包含 DEC-080/081：安全写在无审批通道且非自动审查时跳过无效的模型复核；记忆复用保留来源、失败状态和审计字段；shell/内部工具只在严格契约下静态放行；primary 与 fallback 共享授权总时限；决策记录带插件版本与 schema 版本。
@@ -50,11 +51,13 @@ vp run verify:package
 vp run verify:release
 ```
 
-`release-artifacts/` 必须只有本次发布的一个 `.tgz`；重复打包前手动核对其中内容，勿混入旧版 tarball。目录和 tarball 被 Git 忽略。
+被校验的产物目录必须只有本次发布的一个 `.tgz`。需要保留旧版 tarball 时，使用独立目录，例如 `vp pm pack --pack-destination release-artifacts/npm-1.16.4 --json`，随后运行 `vp exec node scripts/verify-package.mjs release-artifacts/npm-1.16.4`。安全情景也可通过 `vp exec node scripts/verify-guard-scenarios.mjs release-artifacts/guard-1.16.4` 独立输出，避免覆盖未提交的 benchmark 修改。目录和 tarball 被 Git 忽略。
 
 `verify:package` 读取真正的 gzip/tar，检查 manifest、scoped 模块 id、bundle 引用、全部安全模块、locale、图表资源和相对 import。配置、凭据、日志、测试目录等不能进入包。输出文件数、大小和 SHA-512 integrity。
 
-本次 Windows 全量 1155 项测试通过；工作区沙箱下测试运行器的子进程管道会报 `spawn EPERM`，需要仅为原测试命令申请一次更宽权限，不改全局设置。旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机验证通过不等同于 CI 发布成功。
+本次 Windows 全量 1323 项测试通过；工作区沙箱下测试运行器的子进程管道会报 `spawn EPERM`，需要仅为原测试命令申请一次更宽权限，不改全局设置。旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机验证通过不等同于 CI 发布成功。
+
+发布完成后，核对 npmjs 的确切版本、`latest`、provenance 和官方 tarball 内容。不能仅凭本地测试通过、推送成功或 workflow 绿色宣布发布成功。
 
 ## 手动发布相同的已验证 tarball
 
@@ -63,7 +66,7 @@ vp run verify:release
 授权及完整验证均满足后：
 
 ```powershell
-npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.16.3.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.16.4.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
@@ -71,4 +74,4 @@ npm view @leonhardthust/dsh-decision-engine version --registry "https://registry
 
 ## 安装
 
-DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.16.3`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
+DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.16.4`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。

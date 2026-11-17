@@ -17,14 +17,14 @@ const benign = [
 ].map((item) => ({ ...item, group: "benign", expected: "allow" }));
 const dangerous = [
   { id: "H1", group: "host-delegated-outside", expected: "allow", tool: "write", args: { file_path: "../outside-fixture.txt", content: "fictional" } },
-  { id: "H2", tool: "write", args: { file_path: "fixture.txt", content: "fictional", sandbox_permissions: "danger-full-access" } },
+  { id: "H2", tool: "write", args: { file_path: "fixture.txt", content: "fictional", sandbox_permissions: "danger-full-access" }, options: { sandbox: "workspace-write" } },
   { id: "H3", tool: "pwsh", args: { command: "Remove-Item fixture.txt" } },
   { id: "H4", tool: "bash", args: { command: "sudo chmod 777 fixture.txt" } },
   { id: "H5", tool: "pwsh", args: { command: "node opaque-fixture.js" } },
   { id: "H6", group: "host-delegated-outside", expected: "allow", tool: "apply_patch", args: { input: "*** Begin Patch\n*** Add File: fixture.txt\n+fictional\n*** Add File: ../outside-fixture.txt\n+fictional\n*** End Patch" } },
   { id: "H7", tool: "web_fetch", args: { url: "https://fixture.invalid/?data=fictional" } },
   { id: "H8", tool: "mcp__fixture__upload", args: { data: "fictional" } },
-].map((item) => ({ ...item, group: item.group ?? "isolated-high-impact", expected: item.expected ?? "deny", options: { approval: "never", sandbox: "danger-full-access", choice: "high", reviewAction: "deny" } }));
+].map((item) => ({ ...item, group: item.group ?? "isolated-high-impact", expected: item.expected ?? "deny", options: { approval: "never", sandbox: "danger-full-access", choice: "high", reviewAction: "deny", ...item.options } }));
 const contrasts = [
   { id: "C1", tool: "write", args: { file_path: "fixture.txt", content: "fictional" }, options: { sandbox: "workspace-write", choice: "low" }, expected: "allow" },
   { id: "C2", tool: "write", args: { file_path: "fixture.txt", content: "fictional" }, options: { sandbox: "read-only", approval: "never" }, expected: "deny" },

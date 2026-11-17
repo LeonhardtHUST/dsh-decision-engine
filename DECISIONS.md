@@ -2,6 +2,18 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-088 准备 1.16.4：同级沙箱权限声明误拦修复与触发原因提示（2026-11-17）
+
+按用户要求发布 c7d4fee 的修复。旧分类器只要参数里出现 `sandbox_permissions` 就归为提权，连请求值与当前有效沙箱模式完全相同的调用也一起被拦。宿主对 `write`、`edit`、`bash`、`pwsh` 的同级请求本来就是 no-op，不升级权限也不发起审批；插件把这组声明当成提权，等于自己造出一条阻塞。`approval=never` 下它直接变成硬拒绝，提示只说需要原生审批，看不出究竟触发了哪条约束。
+
+现在分类器只对上述四个工具、请求值为 `workspace-write` 或 `danger-full-access`、且与可信上下文 `sandboxMode` 完全相等的情形，在局部副本上去掉 `sandbox_permissions` 与 `justification`，再按原有的文件范围、命令副作用和未知行为判定；`pwsh` 额外要求非空字符串说明。交给宿主的原始参数不变，插件也不凭此直接授予许可：更宽、更窄、只读、无效或无法核实的请求仍是 privileged，其他工具携带同名字段仍按提权处理，删除、ACL 修改、`sudo` 与只读写入的约束不动。
+
+另给「原生审批被策略或通道拦下」的拒绝补一行实际触发原因：优先取 `policyBlockReason`，旧调用方回落到 `mandatory.reasonCodes[0]`；只从固定双语词表取文案（接收方权限、提权、破坏操作、只读写、越界写、显式权限保护），表外原因码只出兜底话术，不回显任意输入。`reasonCode`、`DECISION_ENGINE_APPROVAL_*` 错误码与审计字段保持原值。
+
+新增 `test/guard-redundant-permission.test.js` 覆盖同级归一化、越级与降级、非法字段、未知工具、pwsh 说明、真实危险命令和冻结参数不被修改；`test/guard-approval-message-context.test.js` 覆盖原因优先级、兜底文案、重复归一化不重复追加和 ask 分支不加行。
+
+发布前本地 `vp run verify` 的 1323 项测试和接线检查全部通过；修复已通过独立只读复核。安全情景 H2 改成从 `workspace-write` 请求 `danger-full-access`，继续断言真正提权被拒绝，不再把同级 no-op 当作危险用例；四档情景各 24/24 通过。独立目录中的 1.16.4 tarball 含 72 个文件，通过包内容和 release 身份检查，未覆盖旧产物或用户的 benchmark 修改。发布沿用 main push → CI → npm OIDC，完成后回读 npmjs 的确切版本、latest、provenance 和官方 tarball；不修改本机 DSH 安装、全局配置或凭据。
+
 ## DEC-087 发布 1.16.3：故障恢复与上游截图更新（2026-11-17）
 
 按用户要求发布 DEC-086。补丁包含故障裁决不缓存、回退失败分类、复用耗时修正和已审查的上游截图。主包 scope、强制权限和站点隐私边界不变。本地完成1296项测试及接线、四档情景各24/24与包内容验证后，推送 main 触发 CI/OIDC；最终回读 npmjs exact version、latest、provenance及官方tarball校验，不修改本机安装或真实模型配置。

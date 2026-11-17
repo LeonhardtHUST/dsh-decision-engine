@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildModelReviewState, createVerdictMemoEntry, idleEvaluation, interruptedReviewAction, reuseEvaluation, summarizeModelEvaluation } from "../lib/guard/pipeline.js";
+import { buildModelReviewState, canMemoizeVerdict, createVerdictMemoEntry, idleEvaluation, interruptedReviewAction, reuseEvaluation, summarizeModelEvaluation } from "../lib/guard/pipeline.js";
 
 test("idle evaluations are independent and contain no model request", () => {
   const primary = idleEvaluation();
@@ -13,10 +13,35 @@ test("memo reuse only marks successful evaluations as cache hits", () => {
   for (const status of ["completed", "cache_hit", "failed", "not_requested"]) {
     const evaluation = Object.freeze({ status, provider: "fixture", model: "advisory", latencyMs: 25, reason: "fixture-reason", validationErrors: ["fixture-error"] });
     const reused = reuseEvaluation(evaluation);
-    assert.deepEqual(reused, { ...evaluation, ...(["completed", "cache_hit"].includes(status) ? { status: "cache_hit", latencyMs: null } : {}) });
+    assert.deepEqual(reused, { ...evaluation, ...(["completed", "cache_hit"].includes(status) ? { status: "cache_hit" } : {}), latencyMs: null });
     assert.equal(evaluation.status, status);
     assert.equal(evaluation.latencyMs, 25);
   }
+});
+
+test("memo eligibility excludes degraded, failed and unavailable outcomes without losing explicit denials", () => {
+  const successful = {
+    action: { kind: "deny", reason: "fallback-model-deny" },
+    primary: { ...idleEvaluation(), status: "completed" },
+    secondary: { ...idleEvaluation(), status: "completed" },
+    fallback: { kind: "deny", reason: "fallback-model-deny" },
+  };
+  assert.equal(canMemoizeVerdict(successful), true);
+  for (const change of [
+    { primary: { ...successful.primary, status: "failed" } },
+    { secondary: { ...successful.secondary, status: "failed" } },
+    { degradedReason: "primary-review-exception" },
+    { action: { kind: "cancel", reason: "review-cancelled" } },
+    { action: { kind: "deny", reasonCode: "review-timeout" } },
+    { fallback: { kind: "deny", reason: "fallback-review-failed" } },
+    { fallback: { kind: "deny", reason: "fallback-model-unavailable" } },
+    { fallback: { ...successful.fallback, failure: { stage: "stream", code: "UNKNOWN" } } },
+    { secondary: { ...successful.secondary, failure: { stage: "stream", code: "UNKNOWN" } } },
+  ]) assert.equal(canMemoizeVerdict({ ...successful, ...change }), false);
+  for (const reason of ["fallback-deny", "fallback-allow-soft-review-only"]) {
+    assert.equal(canMemoizeVerdict({ ...successful, fallback: { reason }, secondary: idleEvaluation() }), true);
+  }
+  assert.equal(canMemoizeVerdict({ ...successful, fallback: undefined, primary: idleEvaluation(), secondary: idleEvaluation() }), false);
 });
 
 test("interrupted review preserves cancellation precedence and safe-only timeout delegation", () => {
@@ -77,7 +102,7 @@ test("evaluation summary keeps final-stage status, judge identity and total late
   const reused = summarizeModelEvaluation(reuseEvaluation(secondary), idleEvaluation());
   assert.equal(reused.modelEvaluation.status, "completed");
   assert.equal(reused.judge.status, "cache_hit");
-  assert.equal(reused.latencyMs, 0);
+  assert.equal(reused.latencyMs, null);
 });
 
 test("evaluation summary preserves idle and provider-less failed fallback behavior", () => {

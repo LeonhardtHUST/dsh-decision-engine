@@ -138,15 +138,18 @@ test("caller abort cancels a stalled fallback and cleans caller listeners", asyn
   } finally { await env.cleanup(); }
 });
 
-test("fallback timeout retains its stable code without an approval channel", async () => {
-  const env = await reviewFixture({ preset: "auto", approval: "never", classify: async () => ({ degraded: "fixture-failed" }) });
+test("fallback timeout retains its code but is reevaluated without an approval channel", async () => {
+  let primaryCalls = 0;
+  const env = await reviewFixture({ preset: "auto", approval: "never", classify: async () => { primaryCalls += 1; return { degraded: "fixture-failed" }; } });
   env.services.llm.stream = async function* () { await stalled(); };
   try {
     assert.equal((await env.run("mcp__fixture__query", {})).decision.info.reason, "review-timeout");
     assert.equal(env.records[0].audit.reasonCode, "review-timeout");
     assert.equal((await env.run("mcp__fixture__query", {})).decision.info.reason, "review-timeout");
     assert.equal(env.records.at(-1).audit.reasonCode, "review-timeout");
-    assert.equal(env.records.at(-1).audit.reused, true);
+    assert.equal(env.records.at(-1).audit.reused, false);
+    assert.equal(primaryCalls, 2);
+    assert.equal(env.sideEffects, 0);
   } finally { await env.cleanup(); }
 });
 

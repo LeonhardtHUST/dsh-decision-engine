@@ -320,23 +320,28 @@ test("复用模型低风险裁决时保留 reasonCode 与来源（审计 P0-1 �
   } finally { await env.cleanup(); }
 });
 
-test("复用失败裁决不改写 failed 状态（模型失败率不能被洗掉）", async () => {
-  const env = await fixture({
+test("模型失败不缓存，服务恢复后同参重新审查", async () => {
+  const options = {
     preset: "danger-full-access",
     approval: "never",
     throwModel: true,
+    choice: "low",
     config: { tolerance: "default", guardFallback: "session" },
-  });
+  };
+  const env = await fixture(options);
   try {
     const first = await env.run("pwsh", { command: "node fixture.js" });
-    const second = await env.run("pwsh", { command: "node fixture.js" });
     assert.equal(first.decision.kind, "deny");
-    assert.equal(second.decision.kind, "deny");
-    assert.equal(env.modelCalls, 1, "第二次复用失败结论");
-    assert.equal(env.records[1].audit.reused, true);
-    assert.equal(env.records[1].audit.modelEvaluation.status, "failed");
-    assert.equal(env.records[1].audit.reasonCode, "advisory-failed-unknown-effect");
-    assert.equal(env.records[1].audit.cacheStatus, "hit");
+    assert.equal(env.records[0].audit.modelEvaluation.status, "failed");
+    assert.equal(env.records[0].audit.reasonCode, "advisory-failed-unknown-effect");
+    options.throwModel = false;
+    const second = await env.run("pwsh", { command: "node fixture.js" });
+    assert.equal(second.decision.kind, "allow");
+    assert.equal(env.modelCalls, 2, "恢复后必须重新调用模型");
+    assert.equal(env.records[1].audit.reused, false);
+    assert.equal(env.records[1].audit.modelEvaluation.status, "completed");
+    assert.equal(env.records[1].audit.reasonCode, "model-low-risk-advisory");
+    assert.equal(env.records[1].audit.cacheStatus, "miss");
   } finally { await env.cleanup(); }
 });
 

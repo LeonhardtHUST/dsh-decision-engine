@@ -215,7 +215,7 @@ for (const field of ["risk", "irreversible", "matches_task", "injection_suspect"
 }
 
 const constraints = [
-  { name: "pwsh", args: { command: "fixture-only", sandbox_permissions: "danger-full-access" } },
+  { name: "pwsh", args: { command: "fixture-only", sandbox_permissions: "danger-full-access", justification: "fixture-only: verify the permission constraint cannot be softened" } },
   { name: "mcp__fixture__query", args: { query: "fixture" }, options: { hostDenied: true } },
   { name: "edit", args: { file_path: "fixture.txt", old_string: "before", new_string: "after" }, options: { sandbox: "read-only" } },
   { name: "edit", args: (root) => ({ file_path: join(root, "..", "outside-fixture.txt"), old_string: "before", new_string: "after" }) },

@@ -91,7 +91,7 @@ test("lexical containment is not authorization; canonical bounded workspace muta
   assert.equal(policy("write", args, { sandboxMode: "danger-full-access", fileTargetScope: "outside" }).status, "requires_approval");
   assert.equal(policy("write", args, { sandboxMode: "read-only", fileTargetScope: "inside" }).status, "requires_approval");
   // 同级声明归一化后回到普通写入判定：无 fileTargetScope 为 unknown，inside 才 safe；越级仍需审批。
-  const same = { ...args, sandbox_permissions: "danger-full-access" };
+  const same = { ...args, sandbox_permissions: "danger-full-access", justification: "fixture: verify same-mode and escalation boundaries" };
   assert.equal(policy("write", same, { sandboxMode: "danger-full-access" }).status, "unknown");
   assert.equal(policy("write", same, { sandboxMode: "danger-full-access", fileTargetScope: "inside" }).status, "safe");
   assert.equal(policy("write", same, { sandboxMode: "workspace-write", fileTargetScope: "inside" }).status, "requires_approval");
@@ -104,6 +104,20 @@ test("patch mutations preserve read-only and outside boundaries without trusting
     assert.equal(policy("apply_patch", args, { sandboxMode: "read-only" }, { kind: "none", canonical: "unknown" }).status, "requires_approval");
     assert.equal(policy("apply_patch", args, { sandboxMode: "danger-full-access" }, { kind: "outside-workspace", canonical: "unknown" }).status, "requires_approval");
   }
+});
+
+test("proven invalid permission requests are local denies even when approval is available", () => {
+  const context = { sandboxMode: "danger-full-access", approvalAvailable: true, approvalPolicy: "ask" };
+  const effect = classifyToolEffect({
+    toolName: "write",
+    args: { file_path: "fixture.txt", content: "fixture", sandbox_permissions: "workspace-write" },
+    trustedContext: context,
+  });
+  const mandatory = evaluateMandatoryPolicy({ context, effect });
+  assert.equal(effect.kind, "invalid_request");
+  assert.equal(mandatory.status, "deny");
+  assert.equal(mandatory.approvalAvailable, true);
+  assert.deepEqual(mandatory.reasonCodes, ["invalid-sandbox-permission-request"]);
 });
 
 test("opaque shells and encoded scripts stay unknown regardless confidence or full access", () => {

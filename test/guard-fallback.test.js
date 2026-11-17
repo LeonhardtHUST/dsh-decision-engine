@@ -137,3 +137,157 @@ test("fallback超时与调用者取消有固定reason且绝不放行", async () 
 test("外部审查前遮盖常见密钥字段和bearer值", () => {
   assert.deepEqual(redactGuardData({ apiKey: "123", args: { token: "456" }, text: "Bearer abcdefghijklmnop" }), { apiKey: "[redacted]", args: { token: "[redacted]" }, text: "[redacted]" });
 });
+
+// ---- 回退模型思考档位能力预检（LOG-001）------------------------------------
+
+const capabilities = (provider, model, efforts) => ({
+  provider,
+  id: model,
+  name: "Fixture",
+  reasoning: { efforts: efforts.map((id) => ({ id, name: id.toUpperCase() })) },
+});
+const unsupportedFailure = { stage: "selection", code: "UNSUPPORTED_REASONING_EFFORT", httpStatus: null, finishReason: null };
+
+test("显式档位不被回退模型支持时，在stream前拒绝并保留原route和effort", async () => {
+  for (const policy of ["session", "model"]) {
+    for (const effort of ["off", "medium", "max"]) {
+      let streams = 0;
+      const info = policy === "session"
+        ? capabilities("host", "session", ["low", "high"])
+        : capabilities("other", "review", ["low", "high"]);
+      const llm = {
+        resolveModelInfo: async () => info,
+        async *stream() { streams += 1; yield { type: "text-delta", text: '{"action":"allow"}' }; yield { type: "finish", reason: { kind: "stop" } }; },
+      };
+      const config = policy === "model"
+        ? { guardFallback: "model", guardFallbackProvider: "other", guardFallbackModel: "review", guardFallbackReasoningEffort: effort, timeoutMs: 100 }
+        : { guardFallback: "session", timeoutMs: 100 };
+      const result = await reviewWithFallback({ ...base, config, llm });
+      assert.equal(result.kind, "deny");
+      assert.equal(result.reason, "fallback-model-incompatible");
+      assert.deepEqual(result.failure, unsupportedFailure);
+      assert.deepEqual(result.selection, policy === "model"
+        ? { provider: "other", model: "review", reasoningEffort: effort }
+        : { provider: "host", model: "session", reasoningEffort: "medium" });
+      assert.equal(streams, 0, "不支持的档位绝不能发出模型请求");
+      assert.ok(!JSON.stringify(result).includes(info.name), "不回显能力元数据");
+    }
+  }
+});
+
+test("显式档位受支持时原样stream，不换模型也不换档位", async () => {
+  let request;
+  const llm = {
+    resolveModelInfo: async (provider, model) => capabilities(provider, model, ["off", "low", "medium", "high"]),
+    async *stream(options) { request = options; yield { type: "text-delta", text: '{"action":"allow"}' }; yield { type: "finish", reason: { kind: "stop" } }; },
+  };
+  const result = await reviewWithFallback({ ...base, llm });
+  assert.equal(result.kind, "delegate");
+  assert.equal(result.reason, "fallback-model-allow");
+  assert.deepEqual(result.selection, { provider: "host", model: "session", reasoningEffort: "medium" });
+  assert.equal(request.provider, "host");
+  assert.equal(request.model, "session");
+  assert.equal(request.reasoningEffort, "medium");
+});
+
+test("没有显式effort时不查能力目录、不选最小档位，交宿主默认", async () => {
+  let resolved = 0;
+  let request;
+  const llm = {
+    resolveModelInfo: async () => { resolved += 1; return capabilities("other", "review", ["low"]); },
+    async *stream(options) { request = options; yield { type: "text-delta", text: '{"action":"deny"}' }; yield { type: "finish", reason: { kind: "stop" } }; },
+  };
+  const result = await reviewWithFallback({ ...base, config: { guardFallback: "model", guardFallbackProvider: "other", guardFallbackModel: "review", timeoutMs: 100 }, llm });
+  assert.equal(result.kind, "deny");
+  assert.equal(resolved, 0, "无显式档位时不应为了挑默认值去查能力");
+  assert.equal(Object.hasOwn(request, "reasoningEffort"), false, "不能替调用方补一个最小档位");
+});
+
+test("旧宿主没有resolveModelInfo时保留原SDK验证路径且不额外放行", async () => {
+  let request;
+  const llm = {
+    async *stream(options) { request = options; yield { type: "text-delta", text: '{"action":"allow"}' }; yield { type: "finish", reason: { kind: "stop" } }; },
+  };
+  const result = await reviewWithFallback({ ...base, llm });
+  assert.equal(result.kind, "delegate");
+  assert.equal(result.reason, "fallback-model-allow");
+  assert.equal(request.reasoningEffort, "medium");
+});
+
+test("能力元数据抛错或非法时保守失败，零stream且不回显异常原文", async () => {
+  const canary = "private-capability-canary-https://secret.invalid/?token=fixture";
+  const throwing = Object.assign(new Error(canary), { code: canary, failure: { code: canary, status: 401, message: canary, headers: canary } });
+  const llm = {
+    resolveModelInfo: async () => { throw throwing; },
+    async *stream() { throw new Error("stream must not start"); },
+  };
+  const generic = await reviewWithFallback({ ...base, llm });
+  assert.equal(generic.kind, "deny");
+  assert.equal(generic.reason, "fallback-review-failed");
+  assert.deepEqual(generic.failure, { stage: "selection", code: "UNKNOWN", httpStatus: null, finishReason: null });
+  assert.deepEqual(generic.selection, { provider: "host", model: "session", reasoningEffort: "medium" });
+  assert.ok(!JSON.stringify(generic).includes(canary));
+
+  const invalid = await reviewWithFallback({
+    ...base,
+    llm: { resolveModelInfo: async () => ({ provider: "host", id: "session" }), stream() { throw new Error("stream must not start"); } },
+  });
+  assert.equal(invalid.kind, "deny");
+  assert.equal(invalid.reason, "fallback-review-failed");
+  assert.deepEqual(invalid.failure, { stage: "selection", code: "INVALID_MODEL_INFO", httpStatus: null, finishReason: null });
+});
+
+test("显式档位不支持时同样遵守mandatory优先级，不查能力也不stream", async () => {
+  for (const policy of ["session", "model"]) {
+    let resolved = 0;
+    let streams = 0;
+    const llm = {
+      resolveModelInfo: async () => { resolved += 1; throw new Error("must not resolve"); },
+      stream() { streams += 1; throw new Error("must not stream"); },
+    };
+    const config = policy === "model"
+      ? { guardFallback: "model", guardFallbackProvider: "other", guardFallbackModel: "review", guardFallbackReasoningEffort: "max" }
+      : { guardFallback: "session" };
+    const result = await reviewWithFallback({ ...base, config, mandatory: { status: "requires_approval" }, llm });
+    assert.equal(result.kind, "deny");
+    assert.equal(result.reason, "mandatory-policy-protected");
+    assert.equal(resolved, 0);
+    assert.equal(streams, 0);
+  }
+});
+
+test("能力查询永不返回时由共享deadline收口，迟到resolve也绝不启动stream", async () => {
+  let release;
+  let streams = 0;
+  const llm = {
+    resolveModelInfo: () => new Promise((resolve) => { release = resolve; }),
+    async *stream() { streams += 1; yield { type: "text-delta", text: '{"action":"allow"}' }; yield { type: "finish", reason: { kind: "stop" } }; },
+  };
+  const result = await reviewWithFallback({ ...base, config: { guardFallback: "session", timeoutMs: 30 }, llm });
+  assert.equal(result.kind, "deny");
+  assert.equal(result.reason, "review-timeout");
+  assert.deepEqual(result.failure, { stage: "deadline", code: "TIMEOUT", httpStatus: null, finishReason: null });
+  assert.deepEqual(result.selection, { provider: "host", model: "session", reasoningEffort: "medium" });
+  assert.equal(streams, 0);
+  release(capabilities("host", "session", ["medium"]));
+  await new Promise((resolve) => setTimeout(resolve, 40));
+  assert.equal(streams, 0, "timeout之后迟到的能力结果不能触发模型请求");
+});
+
+test("能力查询期间取消时保留cancel原因，且不启动stream", async () => {
+  const controller = new AbortController();
+  let streams = 0;
+  const llm = {
+    resolveModelInfo() {
+      controller.abort(new Error("private-abort-canary"));
+      return new Promise(() => {});
+    },
+    async *stream() { streams += 1; yield { type: "text-delta", text: '{"action":"allow"}' }; yield { type: "finish", reason: { kind: "stop" } }; },
+  };
+  const result = await reviewWithFallback({ ...base, llm, signal: controller.signal });
+  assert.equal(result.kind, "cancel");
+  assert.equal(result.reason, "review-cancelled");
+  assert.deepEqual(result.failure, { stage: "cancel", code: "ABORTED", httpStatus: null, finishReason: null });
+  assert.equal(streams, 0);
+  assert.ok(!JSON.stringify(result).includes("private-abort-canary"));
+});

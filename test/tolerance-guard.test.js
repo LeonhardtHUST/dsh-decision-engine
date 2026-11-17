@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { apply } from "../lib/index.js";
 import { TOLERANCE_LEVELS } from "../lib/tolerance.js";
 
-function setup({ tolerance = "default", approvalPolicy = "never", denyTool = false, body } = {}) {
+function setup({ tolerance = "default", approvalPolicy = "never", denyTool = false, sandbox = "danger-full-access", body } = {}) {
   const originalHome = process.env.DSH_HOME;
   const originalFetch = globalThis.fetch;
   const home = mkdtempSync(join(tmpdir(), "dsh-tolerance-policy-"));
@@ -18,9 +18,9 @@ function setup({ tolerance = "default", approvalPolicy = "never", denyTool = fal
   };
   const hooks = new Map();
   const services = {
-    permissionPresets: { current: () => "fixture", resolve: () => ({ sandbox: "danger-full-access", approval: approvalPolicy }) },
+    permissionPresets: { current: () => "fixture", resolve: () => ({ sandbox, approval: approvalPolicy }) },
     approval: { overrideOf: () => approvalPolicy, request() {} },
-    sandboxPolicy: { resolve: () => ({ mode: "danger-full-access", workspaceRoot: home }) },
+    sandboxPolicy: { resolve: () => ({ mode: sandbox, workspaceRoot: home }) },
     tools: { executable: () => denyTool ? undefined : { name: "fixture" } },
     connection: { fetch: { register() {} } },
   };
@@ -72,9 +72,10 @@ for (const tolerance of TOLERANCE_LEVELS) {
   });
 
   test(`${tolerance}: required approval remains ask when a host approval channel exists`, async () => {
-    const env = setup({ tolerance, approvalPolicy: "ask" });
+    // 真正越级：当前 workspace-write 请求 danger-full-access，并带上宿主要求的说明。
+    const env = setup({ tolerance, approvalPolicy: "ask", sandbox: "workspace-write" });
     try {
-      const { decision, nextCalled } = await env.run("pwsh", { command: "node fixture.js", sandbox_permissions: "danger-full-access" });
+      const { decision, nextCalled } = await env.run("pwsh", { command: "node fixture.js", sandbox_permissions: "danger-full-access", justification: "fixture-only: verify required approval remains ask" });
       assert.equal(nextCalled, false);
       assert.equal(decision.kind, "ask");
       assert.equal(env.calls.length, 0);

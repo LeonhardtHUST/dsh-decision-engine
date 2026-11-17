@@ -311,7 +311,7 @@ test("tolerance 触发的 ask 带双语审批卡标题，档位原文只留在�
 });
 
 const hardCases = [
-  { label: "explicit sandbox escalation", name: "pwsh", args: { command: userListing, sandbox_permissions: "danger-full-access" } },
+  { label: "explicit sandbox escalation", name: "pwsh", args: { command: userListing, sandbox_permissions: "danger-full-access", justification: "fixture-only: verify explicit escalation still needs approval" } },
   { label: "host tool denied", name: "list_agents", args: {}, options: { hostDenied: true } },
   { label: "read-only write", name: "write", args: { file_path: "fixture.txt", content: "fixture" }, options: { sandbox: "read-only" } },
   { label: "known outside workspace", name: "write", args: (root) => ({ file_path: join(root, "..", "outside-fixture.txt"), content: "fixture" }) },

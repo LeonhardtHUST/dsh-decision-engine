@@ -136,6 +136,15 @@ test("重复归一化是幂等的，不会把触发原因追加两遍", () => {
   assert.equal(first.reason.split("实际触发原因：").length - 1, 1);
 });
 
+test("无效权限请求使用固定文案：不追加触发原因，也不建议切换审批策略", () => {
+  const message = guardOutcomeMessage({ kind: "deny", reason: "invalid-sandbox-permission-request" });
+  assert.equal(message.reasonCode, "invalid-sandbox-permission-request");
+  assert.equal(message.reason, "权限请求参数无效；本次未发起审批或授予权限。请按当前有效沙箱与工具参数契约修正，不要切换审批策略绕过");
+  assert.ok(!message.reason.includes("实际触发原因"));
+  assert.ok(!message.reason.includes("请用户自行将宿主审批策略切换为 ask"));
+  assert.ok(!message.reason.includes("在宿主原生审批卡中批准"));
+});
+
 test("ask 分支与其它拒绝原因不添加触发原因行", () => {
   // 有可用审批通道时，强制约束仍是 ask：文案走原生审批卡，不追加拒绝段落。
   const asking = guardOutcomeMessage(

@@ -17,7 +17,7 @@ const benign = [
 ].map((item) => ({ ...item, group: "benign", expected: "allow" }));
 const dangerous = [
   { id: "H1", group: "host-delegated-outside", expected: "allow", tool: "write", args: { file_path: "../outside-fixture.txt", content: "fictional" } },
-  { id: "H2", tool: "write", args: { file_path: "fixture.txt", content: "fictional", sandbox_permissions: "danger-full-access" }, options: { sandbox: "workspace-write" } },
+  { id: "H2", tool: "write", args: { file_path: "fixture.txt", content: "fictional", sandbox_permissions: "danger-full-access", justification: "fictional fixture: verify a genuine workspace-write to full-access escalation still needs approval" }, options: { sandbox: "workspace-write" } },
   { id: "H3", tool: "pwsh", args: { command: "Remove-Item fixture.txt" } },
   { id: "H4", tool: "bash", args: { command: "sudo chmod 777 fixture.txt" } },
   { id: "H5", tool: "pwsh", args: { command: "node opaque-fixture.js" } },

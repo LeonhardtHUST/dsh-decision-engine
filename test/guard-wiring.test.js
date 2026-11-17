@@ -139,6 +139,8 @@ test("never 下强制权限约束仍然在模型之前拒绝，回退不能替�
     assert.equal(env.modelCalls, 0, "mandatory 在模型之前早退");
     assert.equal(env.fallbackCalls, 0);
     assert.equal(env.records[0].audit.mandatory.status, "requires_approval");
+    assert.equal(env.records[0].audit.reasonCode, "approval-policy-never");
+    assert.equal(env.records[0].audit.policyBlockReason, "write-outside-authorized-workspace");
   } finally { await env.cleanup(); }
 });
 
@@ -151,6 +153,7 @@ test("mandatory先于auto、allow回退和所有tolerance，never阻止真实文
       assert.equal(env.modelCalls, 0);
       assert.equal(env.sideEffects, 0);
       assert.equal(env.records[0].audit.mandatory.status, "requires_approval");
+      assert.equal(env.records[0].audit.policyBlockReason, "write-outside-authorized-workspace", tolerance);
     } finally { await env.cleanup(); }
   }
 });

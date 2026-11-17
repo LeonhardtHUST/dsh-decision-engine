@@ -189,6 +189,52 @@ for (const reviewAction of ["allow", "deny"]) {
   });
 }
 
+test("safe 写 + 可用审批通道：回退模型的软拒绝转成宿主原生询问", async () => {
+  // 凌晨日志现场：mandatory=safe 的工作区内 edit 在 approvalPolicy=ask 下被
+  // fallback-model-deny 直接拒绝——可宿主明明有原生审批卡可用。`safe` 只说明
+  // 本地静态规则已确认工作区内可逆操作，模型/回退的结论是软审查摩擦，正确
+  // 收尾是交回宿主原生审批，而不是让插件的第二个模型替用户说不。
+  const fixture = await createReviewFixture({ approval: "ask", choice: "medium", reviewAction: "deny" });
+  try {
+    const { decision } = await fixture.run("write", { file_path: "allowed.txt", content: "fixture" });
+    assert.equal(fixture.classified.length, 1);
+    assert.equal(fixture.reviews.length, 1);
+    const audit = fixture.records[0].audit;
+    assert.equal(audit.mandatory.status, "safe", "本地规则已判定工作区内安全");
+    assert.equal(audit.baseAction, "ask");
+    assert.equal(audit.decisionSource, "fallback_model");
+    assert.equal(audit.fallback.fallback, "session");
+    assert.equal(audit.fallback.reason, "fallback-model-deny");
+    assert.equal(decision.kind, "ask", "回退软拒绝不能替用户拒绝，应转成宿主审批");
+    assert.equal(audit.reasonCode, "safe-soft-review-ask");
+    assert.match(audit.humanReason, /fallback-model-deny/, "回退原因必须保留到审计");
+    assert.match(audit.humanReason, /model-material-risk/, "主模型的疑问原因也必须保留到审计");
+    assert.equal(audit.pluginReturnedAction, "ask");
+    assert.equal(decision.displayReason.zh, "回退模型建议拒绝此次安全操作，交宿主原生审批决定");
+    assert.equal(decision.displayReason.en, "The fallback review suggested denying this safe operation; the host native approval decides");
+    assert.equal(fixture.sideEffects, 0, "没有真实宿主批准就不能执行");
+    assert.equal(audit.hostApprovalStatus, "unknown", "插件询问不等于用户批准");
+  } finally { await fixture.cleanup(); }
+});
+
+test("safe 写 + 可用审批通道：回退复核失败/无效仍是 deny（有审批通道不等于放行）", async () => {
+  // 只有回退模型的**明确裁决**（fallback-model-deny）才是软审查摩擦；回退
+  // 失败、超时、路线缺失必须继续 fail-closed，不能因为「有审批通道」被洗成
+  // 一次询问。
+  for (const failure of [{ throwFallback: true }, { fallbackText: "not a decision" }]) {
+    const fixture = await createReviewFixture({ approval: "ask", choice: "medium", ...failure });
+    try {
+      const { decision } = await fixture.run("write", { file_path: "allowed.txt", content: "fixture" });
+      assert.equal(fixture.reviews.length, 1);
+      assert.equal(decision.kind, "deny", JSON.stringify(failure));
+      assert.equal(fixture.sideEffects, 0);
+      assert.equal(fixture.records[0].audit.mandatory.status, "safe");
+      assert.equal(fixture.records[0].audit.reasonCode, "fallback-review-failed");
+      assert.notEqual(fixture.details[0]?.scores?.reasonCode, "safe-soft-review-ask", "失败不能被记成一次询问");
+    } finally { await fixture.cleanup(); }
+  }
+});
+
 test("custom fallback model is the actual final judge without losing primary provenance", async () => {
   // external_network：仍会二次复核，因此能用它验证自定义回退路由真的被用上。
   const fixture = await createReviewFixture({ config: { guardFallback: "model", guardFallbackProvider: "custom-reviewer", guardFallbackModel: "custom-model", guardFallbackReasoningEffort: "low" } });

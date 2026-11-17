@@ -40,6 +40,20 @@ test("summary hashing is canonical and cyclic/unavailable input remains unknown"
   assert.equal(hashSummary(undefined).sha256, "unknown");
 });
 
+test("audit keeps the raw mandatory reason beside the approval-availability reason", () => {
+  // 用户文案/错误码仍由 reasonCode 决定（approval-policy-never）；原始强制
+  // 约束另存 policyBlockReason，避免 destructive / write-outside /
+  // recipient-authority 在聚合里并成同一条。
+  const audit = createGuardAudit({
+    reasonCode: "approval-policy-never",
+    policyBlockReason: "destructive-operation-requires-approval",
+  });
+  assert.equal(audit.reasonCode, "approval-policy-never");
+  assert.equal(audit.policyBlockReason, "destructive-operation-requires-approval");
+  assert.equal(createGuardAudit({}).policyBlockReason, "unknown");
+  assert.equal(createGuardAudit({ policyBlockReason: "" }).policyBlockReason, "unknown");
+});
+
 test("plugin defer does not mean host executed or approved", () => {
   const audit = createGuardAudit({ pluginReturnedAction: "defer_to_host" });
   assert.equal(audit.pluginReturnedAction, "defer_to_host");

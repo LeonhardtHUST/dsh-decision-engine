@@ -1,6 +1,6 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.2`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.3`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
@@ -9,7 +9,8 @@
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
 - `.github/workflows/publish.yml`：每次 `main` push 自动检测版本。先比较整个 push 的 `before` 与当前 manifest，拒绝错误包名、非法或倒退版本；再只读查询 npmjs。当前版本已上传则跳过；当前版本高于 npmjs latest 且未上传则进入完整验证及发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
 - 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
-- 当前 `1.16.2` 包含 DEC-084/085：为 `send_message` 增加脱敏核验阶段与失败原因审计，补齐 sibling、child→root、深层成员和负向审批回归矩阵；通信放行条件不变。
+- 当前 `1.16.3` 包含 DEC-086/087：请求与协议故障不再缓存，正常模型裁决仍可复用；新增脱敏回退失败分类，不重复累计复用的历史耗时；引入上游模型平铺截图，暂缓含 D1/cron 的站点部署迁移。
+- `1.16.2` 包含 DEC-084/085：为 `send_message` 增加脱敏核验阶段与失败原因审计，补齐 sibling、child→root、深层成员和负向审批回归矩阵；通信放行条件不变。
 - `1.16.1` 包含 DEC-082：越界 write/edit 按配置交给宿主，autonomous + never + safe 写不再被 fallback 误拒；never 阻断保留原始 mandatory 原因，safe 软拒绝在有审批通道时转为宿主 ask。
 - `1.16.0` 包含 DEC-080/081：安全写在无审批通道且非自动审查时跳过无效的模型复核；记忆复用保留来源、失败状态和审计字段；shell/内部工具只在严格契约下静态放行；primary 与 fallback 共享授权总时限；决策记录带插件版本与 schema 版本。
 - `1.15.1` 包含 DEC-077/078：彻底移除匿名统计控件、安装 ID、心跳上报及网站采集/日报链路，保留本地决策历史与统计；强制审批区分策略禁止和通道不可用，直接给出双语停止重试指引与独立错误码，删除与提权提示分开，不降低原生审批权限边界。
@@ -62,7 +63,7 @@ vp run verify:release
 授权及完整验证均满足后：
 
 ```powershell
-npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.16.2.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm publish ./release-artifacts/leonhardthust-dsh-decision-engine-1.16.3.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
@@ -70,4 +71,4 @@ npm view @leonhardthust/dsh-decision-engine version --registry "https://registry
 
 ## 安装
 
-DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.16.2`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
+DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.16.3`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。

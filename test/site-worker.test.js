@@ -57,6 +57,16 @@ test("Worker 保留静态页面、目录重定向、缓存与二进制图片", a
   assert.deepEqual(Buffer.from(await image.arrayBuffer()), Buffer.from([137, 80, 78, 71]));
 });
 
+test("upstream flatmap screenshot keeps its JPEG bytes and bilingual page references", async () => {
+  const screenshot = await readFile(new URL("../site/assets/shot-flatmap.jpeg", import.meta.url));
+  assert.equal(screenshot.subarray(0, 2).toString("hex"), "ffd8");
+  assert.equal(screenshot.subarray(-2).toString("hex"), "ffd9");
+  const source = await readFile(new URL("../site/build.mjs", import.meta.url), "utf8");
+  const english = await readFile(new URL("../site/lib/content-en.mjs", import.meta.url), "utf8");
+  assert.match(source, /shot-flatmap\.jpeg/);
+  assert.match(english, /shot-flatmap\.jpeg/);
+});
+
 test("provider 下发保持未配置拒绝、门禁与不缓存语义", async () => {
   const worker = await workerFixture();
   const request = new Request("https://site.invalid/api/provider-config");

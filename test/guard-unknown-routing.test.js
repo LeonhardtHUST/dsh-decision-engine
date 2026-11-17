@@ -21,7 +21,7 @@ const externalCalls = [
 ];
 
 async function createReviewFixture(options = {}) {
-  const fixture = await createGuardFixture(options);
+  const fixture = await createGuardFixture({ ...options, config: { guardDeferOutsideWorkspace: false, ...options.config } });
   const records = [];
   const details = [];
   const classified = [];

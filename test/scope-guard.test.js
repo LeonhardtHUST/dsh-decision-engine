@@ -5,7 +5,7 @@ import { join, resolve, relative, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { apply } from "../lib/index.js";
 
-function fixture({ sandbox = "workspace-write", approval = "never", withFilesystem = true } = {}) {
+function fixture({ sandbox = "workspace-write", approval = "never", withFilesystem = true, deferOutsideWorkspace = true } = {}) {
   const home = mkdtempSync(join(tmpdir(), "decision-scopeguard-"));
   const previousHome = process.env.DSH_HOME;
   process.env.DSH_HOME = home;
@@ -27,7 +27,7 @@ function fixture({ sandbox = "workspace-write", approval = "never", withFilesyst
   };
   const configDir = join(home, "dsh-decision-engine");
   mkdirSync(configDir);
-  writeFileSync(join(configDir, "config.yml"), "enabled: true\nmode: enforce\npointAuthorize: enforce\nprovider: bamboonode\nbamboonodeApiKey: sk-fixture-only-00000\nkeyStorage: config\ndecisionsTabEnabled: false\n");
+  writeFileSync(join(configDir, "config.yml"), `enabled: true\nmode: enforce\npointAuthorize: enforce\nprovider: bamboonode\nbamboonodeApiKey: sk-fixture-only-00000\nkeyStorage: config\ndecisionsTabEnabled: false\nguardDeferOutsideWorkspace: ${deferOutsideWorkspace}\n`);
   const ctx = { logger: { info() {}, warn() {}, debug() {} }, get: (name) => services[name], on(name, listener) { const list = hooks.get(name) ?? []; list.push(listener); hooks.set(name, list); return () => {}; }, inject(_names, callback) { callback(); }, plugin() {}, effect() {} };
   apply(ctx, {});
   const session = { id: "fixture-session", header: { cwd: root }, snapshotEvents: () => [] };
@@ -39,18 +39,30 @@ function fixture({ sandbox = "workspace-write", approval = "never", withFilesyst
   return { root, calls, run, cleanup() { globalThis.fetch = originalFetch; if (previousHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previousHome; rmSync(home, { recursive: true, force: true, maxRetries: 8, retryDelay: 30 }); } };
 }
 
-test("越界写入必须先过mandatory，auto和danger-full-access也不能无审批执行", async () => {
+test("越界写入默认交给宿主，不被插件替代审批", async () => {
   for (const sandbox of ["workspace-write", "danger-full-access"]) {
     const env = fixture({ sandbox });
     try {
       const result = await env.run("write", { file_path: join(env.root, "..", "outside.txt"), content: "fixture" });
-      assert.equal(result.decision.kind, "deny"); assert.equal(result.released, false); assert.equal(env.calls.length, 0);
+      assert.equal(result.decision.kind, "allow");
+      assert.equal(result.released, true);
+      assert.equal(env.calls.length, 0);
     } finally { env.cleanup(); }
   }
 });
 
+test("guardDeferOutsideWorkspace=false 保留旧的强制审批行为", async () => {
+  const env = fixture({ sandbox: "danger-full-access", deferOutsideWorkspace: false });
+  try {
+    const result = await env.run("write", { file_path: join(env.root, "..", "outside.txt"), content: "fixture" });
+    assert.equal(result.decision.kind, "deny");
+    assert.equal(result.released, false);
+    assert.equal(env.calls.length, 0);
+  } finally { env.cleanup(); }
+});
+
 test("已核实范围内的有限写入仍走模型审查", async () => {
-  const env = fixture();
+  const env = fixture({ approval: "ask" });
   try {
     assert.equal((await env.run("write", { file_path: join(env.root, "inside.txt"), content: "fixture" })).decision.kind, "allow");
     assert.equal(env.calls.length, 1);
@@ -66,7 +78,7 @@ test("只有词法作用域而无canonical宿主证据时不再fail-open", async
 });
 
 test("人工审批可用时required返回ask，不由模型代批", async () => {
-  const env = fixture({ approval: "ask" });
+  const env = fixture({ approval: "ask", deferOutsideWorkspace: false });
   try {
     assert.equal((await env.run("write", { file_path: join(env.root, "..", "outside.txt"), content: "fixture" })).decision.kind, "ask");
     assert.equal(env.calls.length, 0);
@@ -74,9 +86,9 @@ test("人工审批可用时required返回ask，不由模型代批", async () => 
 });
 
 test("多目标patch仍要求权限，未解析shell按主模型低风险结论放行", async () => {
-  const env = fixture();
+  const env = fixture({ deferOutsideWorkspace: false });
   try {
-    // 多目标补丁里有一个目标在写根之外：mandatory 在模型之前就拦下，行为不变。
+    // 关闭「交宿主」兼容开关时，多目标补丁仍由 mandatory 在模型前拦下。
     const patch = `*** Begin Patch\n*** Add File: ${join(env.root, "inside.txt")}\n+fixture\n*** Add File: ${join(env.root, "..", "outside.txt")}\n+fixture\n*** End Patch`;
     assert.equal((await env.run("apply_patch", { input: patch })).decision.kind, "deny");
     assert.equal(env.calls.length, 0);

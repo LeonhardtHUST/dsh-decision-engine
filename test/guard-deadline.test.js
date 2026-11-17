@@ -12,7 +12,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const stalled = () => new Promise(() => {});
 
 async function reviewFixture(options = {}) {
-  const env = await createGuardFixture({ ...options, config: { guardDeadlineMs: 80, timeoutMs: 1000, ...options.config } });
+  const env = await createGuardFixture({ ...options, config: { guardDeadlineMs: 80, timeoutMs: 1000, guardDeferOutsideWorkspace: false, ...options.config } });
   const ctx = { get: (name) => env.services[name], on: (name, listener) => env.hooks.set(name, listener), logger: { warn() {} } };
   mountGuard(ctx, {
     getConfig: () => env.config, reloadOwnConfig: async () => {}, effectivePointModes,

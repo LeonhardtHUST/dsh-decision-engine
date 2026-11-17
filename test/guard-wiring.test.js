@@ -90,6 +90,22 @@ test("never + 少问档：medium 未达尾部时由档位直接降为放行", as
   } finally { await env.cleanup(); }
 });
 
+test("never + autonomous 下 safe 写也不依赖模型意见", async () => {
+  const env = await fixture({
+    preset: "danger-full-access",
+    approval: "never",
+    choice: "high",
+    config: { tolerance: "autonomous", guardFallback: "session" },
+  });
+  try {
+    const { decision } = await env.run("write", { file_path: "allowed.txt", content: "fixture" });
+    assert.equal(decision.kind, "allow");
+    assert.equal(env.modelCalls, 0, "autonomous 也不能让模型覆盖 safe 宿主边界");
+    assert.equal(env.fallbackCalls, 0);
+    assert.equal(env.records[0].audit.reasonCode, "safe-local-operation-host-sandbox");
+  } finally { await env.cleanup(); }
+});
+
 test("never 下 safe 写不依赖模型意见，high/注入设置也不会触发模型", async () => {
   // 审计 11-16 P1-2：本地规则已确认工作区内安全，模型在 never + 非自动
   // 审查下无法改变结论，失败反而会拒绝；因此连主模型都不再调用。
@@ -115,7 +131,7 @@ test("never 下强制权限约束仍然在模型之前拒绝，回退不能替�
     preset: "danger-full-access",
     approval: "never",
     choice: "medium",
-    config: { tolerance: "default", guardFallback: "allow" },
+    config: { tolerance: "default", guardFallback: "allow", guardDeferOutsideWorkspace: false },
   });
   try {
     const { decision } = await env.run("write", { file_path: join(env.root, "..", "not-authorized.txt"), content: "fixture" });
@@ -128,7 +144,7 @@ test("never 下强制权限约束仍然在模型之前拒绝，回退不能替�
 
 test("mandatory先于auto、allow回退和所有tolerance，never阻止真实文件越界调用", async () => {
   for (const tolerance of ["default", "autonomous", "relaxed", "cautious"]) {
-    const env = await fixture({ approval: "never", sandbox: "danger-full-access", config: { tolerance, guardFallback: "allow" } });
+    const env = await fixture({ approval: "never", sandbox: "danger-full-access", config: { tolerance, guardFallback: "allow", guardDeferOutsideWorkspace: false } });
     try {
       const { decision } = await env.run("write", { file_path: join(env.root, "..", "not-authorized.txt"), content: "fixture" });
       assert.equal(decision.kind, "deny", tolerance);

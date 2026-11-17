@@ -15,7 +15,7 @@ const signals = (choice = "low", probabilities) => ({
 });
 
 async function denialFixture(options = {}) {
-  const fixture = await createGuardFixture({ preset: options.preset ?? "manual", approval: options.approval ?? "never", sandbox: options.sandbox, config: { tolerance: "relaxed", guardFallback: options.fallback ?? "session" } });
+  const fixture = await createGuardFixture({ preset: options.preset ?? "manual", approval: options.approval ?? "never", sandbox: options.sandbox, config: { tolerance: "relaxed", guardFallback: options.fallback ?? "session", guardDeferOutsideWorkspace: false } });
   const records = [];
   const details = [];
   const hooks = new Map();

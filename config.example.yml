@@ -376,7 +376,9 @@ pointCotTranslate: off
 # cacheTtlMs: 600000        # 裁决存活时间
 # recentMessages: 4         # 带给模型的上下文条数
 # guardReadOnlyTools / guardExcludeTools / guardDeferOutsideWorkspace 保留旧键解析，
-# 不再是绕过强制安全策略的白名单；越界写入不能无条件交给宿主。
+# guardDeferOutsideWorkspace 默认 true：确定的越界 write/edit 交给宿主沙箱与权限策略，
+# 插件不替宿主审批；设为 false 才由插件按 mandatory requires_approval 拦截。
+# 它不影响 destructive/privileged shell、外部网络、未解析 patch 或其它 unknown effect。
 # guardDenyConfidence 不再参与新授权策略。confidence 不能充当危险概率。
 # guardIrreversibleCeiling: 0.2
 # guardTaskRelevanceFloor: 0.5

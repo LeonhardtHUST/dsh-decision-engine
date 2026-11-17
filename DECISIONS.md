@@ -2,6 +2,19 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-082 修正越界写入 defer 与 autonomous safe 写误拒（2026-11-17）
+
+今天两个真实案例暴露出同一类接线问题：
+
+- `guardDeferOutsideWorkspace` 默认值已经是 `true`，设计上应把确定的工作区外写入交给宿主沙箱与权限策略，但 listener 之前完全没使用这个配置，`write/edit` 直接落到 `requires_approval`，在 `approvalPolicy=never` 下被插件硬拒。
+- `tolerance=autonomous` 会让 `automaticReview=true`，旧的 safe 写快路径又排除了 automatic review，导致本地已判 `mandatory=safe` 的 `edit/write` 仍进入模型和 fallback，最终出现 `fallback-model-deny`。
+
+现在：
+
+- 明确的 `write_workspace` 越界目标在 `guardDeferOutsideWorkspace !== false` 时直接 `delegate`，并让下游宿主决定是否允许；插件 guard 不再把这类 defer 当作 mandatory deny。
+- `mandatory=safe`、工作区内、宿主无审批通道的写入，无论 tolerance 是否 autonomous 都不再走模型复核；危险 shell、提权、外网、unknown effect 和 `guardDeferOutsideWorkspace=false` 仍保持原策略。
+- 回归覆盖默认 defer、显式关闭、autonomous safe 写和强制危险路径。
+
 ## DEC-081 发布 1.16.0：降低误审查成本并收紧授权时限（2026-11-16）
 
 本次发布收口审批日志审计剩余的结构问题：

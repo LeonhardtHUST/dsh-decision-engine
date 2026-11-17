@@ -55,7 +55,7 @@ vp run verify:release
 
 `verify:package` 读取真正的 gzip/tar，检查 manifest、scoped 模块 id、bundle 引用、全部安全模块、locale、图表资源和相对 import。配置、凭据、日志、测试目录等不能进入包。输出文件数、大小和 SHA-512 integrity。
 
-本次 Windows 全量 1323 项测试通过；工作区沙箱下测试运行器的子进程管道会报 `spawn EPERM`，需要仅为原测试命令申请一次更宽权限，不改全局设置。旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机验证通过不等同于 CI 发布成功。
+本次 Windows 全量 1323 项测试通过。工作区沙箱下测试运行器的子进程管道可能报 `spawn EPERM`：只有确认是 sandbox 拒绝、且宿主审批通道可用时，才按宿主流程对同一条命令单次授权，不改全局设置；审批通道为 `never` 时不得设置 `sandbox_permissions`，也不得换命令绕过，应如实报告这一限制。旧验证检查点及安全边界见 `bench/guard-revision/validation.md` 与 `docs/auto-review-hotfix.md`（完整证据仅在源码仓库保留）。发布 CI 选择 Linux，依然必须运行完整测试，不跳过或忽略它们；本机验证通过不等同于 CI 发布成功。
 
 发布完成后，核对 npmjs 的确切版本、`latest`、provenance 和官方 tarball 内容。不能仅凭本地测试通过、推送成功或 workflow 绿色宣布发布成功。
 

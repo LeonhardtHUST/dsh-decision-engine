@@ -2,6 +2,15 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-083 发布 1.16.1：收口凌晨审批日志误伤修复（2026-11-17）
+
+1.16.1 发布 DEC-082 及凌晨日志复核后的两项策略修复：
+
+- 保留 `approval-policy-never` 阻断对应的原始 mandatory 原因，审计不再把 destructive、越界写和接收方权限混成一个桶。
+- `mandatory=safe` 且宿主审批通道可用时，fallback 的软拒绝转成宿主原生 ask；fallback 失败、unknown、external、requires_approval 和 deny 仍 fail-closed。
+
+验证：相关 guard 回归逐文件通过；此前全量 1192 项通过。未推送本条提交时不自动修改本机已安装插件。
+
 ## DEC-082 修正越界写入 defer 与 autonomous safe 写误拒（2026-11-17）
 
 今天两个真实案例暴露出同一类接线问题：

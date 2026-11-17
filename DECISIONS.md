@@ -2,6 +2,16 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-090 发布 1.16.5 并完成官方包核验（2026-11-17）
+
+按用户明确授权发布 `1.16.5`。发布源提交 `38f0d87019ab3b1ab275dc8faa8f39f7499a88db`；CI 入口 https://github.com/LeonhardtHUST/dsh-decision-engine/actions/runs/44095170847 通过，发布工作流 https://github.com/LeonhardtHUST/dsh-decision-engine/actions/runs/44095170831 通过，使用 OIDC 与 `--provenance`。
+
+`1.16.5` 于 UTC `2026-11-17T13:44:20.226Z`（北京时间 21:44:20）发布并成为 exact/latest，`checkedAt` 为 `13:45:30.635Z`。最初 exact 查询一度 404，随后 packument 与 tarball 公开可用，属传播延迟，未登记为新问题。
+
+官方 tarball 为 75 文件、1 548 036 B，44 个 lib 文件与 release 源码逐字节相同；发布前 CI 入口 `vp run verify` 为 1365/1365，96/96 情景、frozen install 与包校验通过，默认发现多 1 项 helper 为 1366，Windows 清理 `EPERM` 仍属 LOG-009。`sha1` 与 `sha512` integrity 记录在 [TODO.md](TODO.md) 的当前发布状态。SLSA 信封内容已匹配 repo/main、`.github/workflows/publish.yml`、commit 和 artifact digest；密码学签名验证没有执行，不把信封内容匹配说成签名完全验真。
+
+边界：本机 profile 仍是旧 npm `1.16.4`，安装 `1.16.5`、重启和只读 canary 均需用户另行授权；`off` 配置与模型能力失配同样待授权。本次没有修改 profile、全局配置、凭据或业务代码，9 项待办都保持未勾选。提交、推送与文档收敛由根流程执行。
+
 ## DEC-089 准备 1.16.5：回退 effort 能力预检与无效沙箱请求分类（2026-11-17）
 
 按用户要求把已通过独立只读验收的 P1 修复升版发布。`1.16.4` 已上传且不可覆盖，本次版本号为 `1.16.5`，只改版本与发布元数据，不改业务代码。

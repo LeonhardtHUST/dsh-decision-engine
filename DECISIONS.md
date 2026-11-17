@@ -2,6 +2,22 @@
 
 <!-- APPEND-ONLY LOG: 新条目插入到此行之后 -->
 
+## DEC-085 发布 1.16.2：消息核验审计与通信回归矩阵（2026-11-17）
+
+按用户要求发布 DEC-084。版本从 `1.16.1` 升为 `1.16.2`，新增脱敏消息核验摘要和 sibling 等通信方向的断言测试，不改变消息放行条件。发布继续使用 main push → CI → npm OIDC；以 npmjs 的确切版本和 latest 回读确认发布，不以推送成功或 workflow 绿色代替 registry 验证。不更新本机已安装插件，不修改全局配置。
+
+发布前本地验证：锁定依赖安装成功，`vp run verify` 1274 项测试及接线通过，guard 情景四档各 24/24；独立目录中的 1.16.2 tarball 通过包内容与 release 身份检查。旧 tarball 保留，未绕过审批删除。
+
+## DEC-084 消息核验失败可观测性与同树通信回归（2026-11-17）
+
+`send_message` 的旧审计只有上下文哈希，无法区分名称解析失败、目录不可读和 guard 证明缺失。此次添加 `messageVerification`：telemetry audit 与明细 scores 共用同一份白名单摘要，只记录核验阶段、固定原因枚举、同树/可接续/本机状态、guard 证明状态，以及 sender/root/target ID 的 SHA-256。消息正文、目标名称和异常原文不进入该摘要；非消息调用不新增此字段，旧日志不补造证据。
+
+`globalGuardRegistered` 表示本次 listener 提供的 guard 注册启用证据，不表示目标获得权限或宿主已经投递成功。查询失败与无匹配目录成员仍为 `unknown`，不能标为已证实树外。通信 safe、requires_approval 及执行前身份校验的条件保持不变。
+
+新增全内存矩阵覆盖 root→active/idle child、child→root、同树 sibling→active/idle sibling、child→深层 descendant，以及树外、one-shot、diagnostic、缺 guard、作用域服务缺失和查询失败。对 never/ask 分别验证裁决、模型零调用和本次原生批准；参数、token、callId、工具或会话变化不能复用旧批准。两项 data URL 内存变异分别将目录查询改为 caller 目录、把名称解析成功当作同树，均被同一验证函数抓住，不修改真实源码。
+
+验证：通信矩阵 69 项通过；`vp run test` 1274 项通过；隔离 guard 场景四档各 24/24，通过且不执行真实消息、外网或破坏性操作。当前安装版 DSH 0.2.2-rc.3 文档支持同树成员通信及 root 查询；fixture 结果不代表真实宿主已经投递成功。
+
 ## DEC-083 发布 1.16.1：收口凌晨审批日志误伤修复（2026-11-17）
 
 1.16.1 发布 DEC-082 及凌晨日志复核后的两项策略修复：

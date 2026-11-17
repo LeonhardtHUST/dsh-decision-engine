@@ -37,6 +37,7 @@ import {
   systemTimeZone,
 } from "../lib/decision-log.js";
 import { guardQuestions, GUARD_QUESTIONS_VERSION } from "../lib/guard/advisory.js";
+import { messageVerificationSummary } from "../lib/guard/audit.js";
 
 // ------------------------------------------------------------------ 常量
 
@@ -364,6 +365,21 @@ test("expandRecord：折叠引用哈希对不上时不还原（定义改过）",
   // 哈希不匹配 → 保持折叠引用（宁可让界面看到引用，也不造假内容）。
   assert.equal(expanded.content.questions.ref, GUARD_QUESTIONS_VERSION);
   assert.equal(expanded.content.questions.sha256, "0".repeat(64));
+});
+
+test("message verification summaries survive compact/expand without inventing legacy evidence", () => {
+  const summary = messageVerificationSummary({ messageVerification: {
+    senderId: "sender-canary", rootId: "root-canary", targetId: "target-canary",
+    membership: "same-tree", continuable: true, hostLocal: true,
+    globalGuardRegistered: false, downstreamIndependentApproval: "unknown",
+    verificationStage: "guard", verificationReason: "guard-not-registered",
+  } });
+  const record = richRecord({ tool: "send_message", scores: { messageVerification: summary } });
+  const expanded = expandRecord(compactRecord(record));
+  assert.deepEqual(expanded.scores.messageVerification, summary);
+  assert.doesNotMatch(JSON.stringify(expanded.scores.messageVerification), /sender-canary|root-canary|target-canary/);
+  const legacy = expandRecord({ v: 1, ts: "t", sessionId: "s", point: "authorize", tool: "send_message" });
+  assert.equal(legacy.scores?.messageVerification, undefined);
 });
 
 test("expandRecord：缺省字段补齐（读端信任字段形状）", () => {

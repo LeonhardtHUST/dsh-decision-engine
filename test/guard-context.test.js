@@ -120,6 +120,101 @@ test("同树但 global guard 未生效时仍不授予下游独立批准", async 
   assert.equal(context.messageTarget.downstreamIndependentApproval, "unknown");
 });
 
+test("message verification stages preserve availability and fail closed on failed or invalid queries", async () => {
+  const failure = () => { throw new Error("private-error-canary"); };
+  const cases = [
+    [{}, "service", "subagents-service-unavailable", "host-field-unavailable"],
+    [{ rootOf: null }, "service", "subagents-service-unavailable", "host-field-unavailable"],
+    [{ rootOf: failure }, "root", "root-query-failed", "host-query-failed"],
+    [{ rootOf: () => undefined }, "root", "root-unavailable", "host-field-unavailable"],
+    [{ rootOf: () => ({ id: 42 }) }, "root", "root-unavailable", "host-field-unavailable"],
+    [{ resolveName: failure }, "target", "target-resolution-failed", "host-query-failed"],
+    [{ resolveName: () => undefined }, "target", "target-resolution-failed", "host-query-failed"],
+    [{ resolveName: () => ({ id: "target" }) }, "target", "target-resolution-failed", "host-query-failed"],
+    [{ listDescendants: failure }, "descendants", "descendants-query-failed", "host-query-failed"],
+    [{ listDescendants: () => ({}) }, "descendants", "descendants-query-failed", "host-query-failed"],
+    [{ listDescendants: () => [null] }, "descendants", "descendants-query-failed", "host-query-failed"],
+  ];
+  for (const [overrides, stage, reason, availabilityReason] of cases) {
+    const subagents = Object.keys(overrides).length ? {
+      rootOf: () => ({ id: "root" }), resolveName: () => "target",
+      listDescendants: () => [{ id: "target", kind: "child", mode: "continuable" }], ...overrides,
+    } : undefined;
+    const context = await buildTrustedContext({ ...fixture({ subagents }), exec: { name: "send_message", arguments: { agent: "target" } }, downstreamPolicyEnforced: true });
+    assert.equal(context.messageVerification.verificationStage, stage);
+    assert.equal(context.messageVerification.verificationReason, reason);
+    assert.doesNotMatch(JSON.stringify(context.messageVerification), /private-error-canary/);
+    assert.equal(context.messageVerification.membership, "unknown");
+    assert.equal(context.messageVerification.downstreamIndependentApproval, "unknown");
+    assert.equal(context.messageTarget.membership, "unknown");
+    assert.equal(context.messageTarget.downstreamIndependentApproval, "unknown");
+    assert.equal(context.hostEnforcement.internalMessage, "unknown");
+    assert.deepEqual(context.availability.messageTarget, { available: false, reason: availabilityReason });
+  }
+});
+
+test("actor-scoped service failures cannot borrow root message verification", async () => {
+  const input = fixture({ subagents: { rootOf: () => ({ id: "root" }), resolveName: () => "target", listDescendants: () => [{ id: "target", kind: "child", mode: "continuable" }] } });
+  input.agent.ctx = { get() { throw new Error("private-service-canary"); } };
+  const context = await buildTrustedContext({ ...input, exec: { name: "send_message", arguments: { agent: "target" } }, downstreamPolicyEnforced: true });
+  assert.equal(context.messageVerification.verificationStage, "service");
+  assert.equal(context.messageVerification.verificationReason, "subagents-service-unavailable");
+  assert.equal(context.messageTarget.downstreamIndependentApproval, "unknown");
+  assert.equal(context.hostEnforcement.internalMessage, "unknown");
+  assert.deepEqual(context.availability.messageTarget, { available: false, reason: "host-field-unavailable" });
+  assert.doesNotMatch(JSON.stringify(context.messageVerification), /private-service-canary/);
+});
+
+test("message verification distinguishes verified membership from guard registration", async () => {
+  const subagents = { rootOf: () => ({ id: "root" }), resolveName: () => "target", listDescendants: () => [{ id: "target", kind: "child", mode: "continuable" }] };
+  for (const guard of [false, true]) {
+    const context = await buildTrustedContext({ ...fixture({ subagents }), exec: { name: "send_message", arguments: { agent: "target" } }, downstreamPolicyEnforced: guard });
+    assert.equal(context.messageVerification.verificationStage, guard ? "complete" : "guard");
+    assert.equal(context.messageVerification.verificationReason, guard ? "verified" : "guard-not-registered");
+    assert.equal(context.messageVerification.globalGuardRegistered, guard);
+    assert.equal(context.messageVerification.downstreamIndependentApproval, guard ? true : "unknown");
+    assert.equal(context.messageVerification.hostLocal, true);
+    assert.equal(context.availability.messageTarget.available, true);
+  }
+  subagents.listDescendants = () => [];
+  const outsider = await buildTrustedContext({ ...fixture({ subagents }), exec: { name: "send_message", arguments: { agent: "target" } }, downstreamPolicyEnforced: true });
+  assert.equal(outsider.messageVerification.verificationReason, "target-not-in-continuable-tree");
+  assert.equal(outsider.messageVerification.membership, "unknown");
+  assert.equal(outsider.messageTarget.membership, "unknown");
+  assert.equal(outsider.availability.messageTarget.available, true);
+});
+
+test("root targets still require descendants queries and resident lookup failures stay closed", async () => {
+  const subagents = { rootOf: () => ({ id: "root" }), resolveName: () => "root", listDescendants: () => [] };
+  const exec = { name: "send_message", arguments: { agent: "root" } };
+  const root = await buildTrustedContext({ ...fixture({ subagents }), exec, downstreamPolicyEnforced: true });
+  assert.equal(root.messageVerification.verificationReason, "verified");
+  assert.equal(root.messageTarget.downstreamIndependentApproval, true);
+  assert.equal(root.availability.messageTarget.available, true);
+  subagents.listDescendants = () => { throw new Error("private-query-canary"); };
+  const failedRoot = await buildTrustedContext({ ...fixture({ subagents }), exec, downstreamPolicyEnforced: true });
+  assert.equal(failedRoot.messageVerification.verificationReason, "descendants-query-failed");
+  assert.equal(failedRoot.messageTarget.membership, "unknown");
+  assert.equal(failedRoot.hostEnforcement.internalMessage, "unknown");
+  subagents.resolveName = () => "target";
+  subagents.listDescendants = () => [{ id: "target", kind: "child", mode: "continuable" }];
+  const failedResident = await buildTrustedContext({ ...fixture({ subagents, agents: { get() { throw new Error("private-registry-canary"); } } }), exec, downstreamPolicyEnforced: true });
+  assert.equal(failedResident.messageVerification.verificationStage, "host-local");
+  assert.equal(failedResident.messageVerification.verificationReason, "host-local-query-failed");
+  assert.equal(failedResident.messageTarget.downstreamIndependentApproval, "unknown");
+  assert.deepEqual(failedResident.availability.messageTarget, { available: false, reason: "host-query-failed" });
+});
+
+test("invalid message arguments have a reason without verified authority", async () => {
+  for (const value of [undefined, null, 42, "", "  "]) {
+    const context = await buildTrustedContext({ ...fixture(), exec: { name: "send_message", arguments: { agent: value } }, downstreamPolicyEnforced: true });
+    assert.equal(context.messageVerification.verificationReason, "invalid-agent-argument");
+    assert.equal(context.messageTarget.downstreamIndependentApproval, "unknown");
+    assert.equal(context.hostEnforcement.internalMessage, "unknown");
+  }
+  assert.equal((await buildTrustedContext(fixture())).messageVerification, undefined);
+});
+
 test("canonical host resolution defeats lexical in-workspace alias and records no enforcement claim", async () => {
   const input = fixture({
     sandboxPolicy: { resolve: () => ({ mode: "workspace-write", workspaceRoot: "/fixture" }) },

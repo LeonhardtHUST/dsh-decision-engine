@@ -219,7 +219,8 @@ const constraints = [
   { name: "mcp__fixture__query", args: { query: "fixture" }, options: { hostDenied: true } },
   { name: "edit", args: { file_path: "fixture.txt", old_string: "before", new_string: "after" }, options: { sandbox: "read-only" } },
   { name: "edit", args: (root) => ({ file_path: join(root, "..", "outside-fixture.txt"), old_string: "before", new_string: "after" }) },
-  { name: "pwsh", args: { command: "Remove-Item fixture-only.txt" } },
+  // 递归删除不在有界删除豁免内（见 test/guard-exemption.test.js），仍属硬约束。
+  { name: "pwsh", args: { command: "Remove-Item -Recurse fixture-only.txt" } },
 ];
 for (const fallback of ["allow", "deny", "session", "model"]) {
   for (const constraint of constraints) {

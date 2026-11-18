@@ -104,6 +104,29 @@ test("空闲但可接续的同树子代理仍算本机成员（不依赖 live re
   assert.equal(context.hostEnforcement.internalMessage, true);
 });
 
+test("guard 注册证据按每次调用重新读取，不会缓存上一次的注册事实", async () => {
+  // 注册时序修复的生命周期在 listener：它既不能在 mount 时把 tools 服务
+  // 抓死，也不能在上下文层留下「曾经注册过」的全局状态。这里用同一组
+  // 服务连续构建两次上下文，注册事实从 true 变 false 时必须立刻反映出来。
+  const input = fixture({
+    subagents: {
+      rootOf: () => ({ id: "root" }),
+      resolveName: async () => "reviewer",
+      listDescendants: async () => [{ id: "reviewer", kind: "child", mode: "continuable", activity: "inactive" }],
+    },
+  });
+  const exec = { name: "send_message", arguments: { agent: "reviewer" } };
+  const verified = await buildTrustedContext({ ...input, exec, downstreamPolicyEnforced: true });
+  const unregistered = await buildTrustedContext({ ...input, exec, downstreamPolicyEnforced: false });
+  assert.equal(verified.messageTarget.downstreamIndependentApproval, true);
+  assert.equal(verified.messageVerification.globalGuardRegistered, true);
+  assert.equal(unregistered.messageTarget.downstreamIndependentApproval, "unknown");
+  assert.equal(unregistered.messageVerification.globalGuardRegistered, false);
+  assert.equal(unregistered.messageVerification.verificationStage, "guard");
+  assert.equal(unregistered.messageVerification.verificationReason, "guard-not-registered");
+  assert.notEqual(unregistered.contextVersion, verified.contextVersion);
+});
+
 test("同树但 global guard 未生效时仍不授予下游独立批准", async () => {
   const input = fixture({
     subagents: {

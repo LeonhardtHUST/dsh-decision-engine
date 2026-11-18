@@ -318,7 +318,8 @@ const hardCases = [
   { label: "multi-target patch outside workspace", name: "apply_patch", args: (root) => ({ input: `*** Begin Patch\n*** Update File: ${join(root, "allowed.txt")}\n@@\n-fixture\n+patched\n*** Update File: ${join(root, "..", "outside-fixture.txt")}\n@@\n-fixture\n+escape\n*** End Patch` }) },
   { label: "known outside patch plus unresolved target", name: "apply_patch", args: (root) => ({ patch: `*** Begin Patch\n*** Update File: ${join(root, "..", "outside-fixture.txt")}\n@@\n-fixture\n+escape\n*** Update File: unresolved$target.txt\n@@\n-fixture\n+patched\n*** End Patch` }) },
   { label: "privileged shell", name: "pwsh", args: { command: "sudo fixture-only-command" } },
-  { label: "destructive shell", name: "pwsh", args: { command: "Remove-Item fixture-only.txt" } },
+  // 递归删除不在有界删除豁免内（见 test/guard-exemption.test.js），仍属硬约束。
+  { label: "destructive shell", name: "pwsh", args: { command: "Remove-Item -Recurse fixture-only.txt" } },
 ];
 
 for (const fallback of ["session", "model", "allow", "deny"]) {

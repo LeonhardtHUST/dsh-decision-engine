@@ -8,7 +8,10 @@ import { effectivePointModes } from "../lib/index.js";
 import { ToleranceCalibrator } from "../lib/tolerance.js";
 import { createGuardFixture } from "./helpers/guard-fixture.js";
 
-const destructiveCall = { command: "Remove-Item fixture-only.txt" };
+// 这里要的是「仍然触发强制审批」的破坏性调用。单目标、零开关的工作区内删除
+// 已按新策略豁免（见 test/guard-exemption.test.js），因此本文件的固定样本改用
+// 递归开关——它仍属于破坏性命令，但形状不被有界删除豁免接受。
+const destructiveCall = { command: "Remove-Item -Recurse fixture-only.txt" };
 
 test("删除与提权保留强制审批，但风险原因不再混为一谈", () => {
   const context = { sandboxMode: "danger-full-access", approvalAvailable: true };

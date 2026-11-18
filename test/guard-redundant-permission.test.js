@@ -159,7 +159,8 @@ test("listener：越级、无效请求、越界、未知工具与危险命令仍
     assert.equal((await env.run("pwsh", { command: "node fixture.js", sandbox_permissions: WS })).decision.kind, "deny", "pwsh 同模式缺说明无效");
     assert.equal((await env.run("shell", { command: "fixture", sandbox_permissions: WS, justification: "x" })).decision.kind, "deny");
     assert.equal((await env.run("pwsh", { command: "sudo fixture", sandbox_permissions: WS, justification: "x" })).decision.kind, "deny");
-    assert.equal((await env.run("pwsh", { command: "Remove-Item fixture", sandbox_permissions: WS, justification: "x" })).decision.kind, "deny");
+    // 单目标无开关的工作区内删除会走有界删除豁免，这里用递归命令维持「危险命令仍被拒」。
+    assert.equal((await env.run("pwsh", { command: "Remove-Item -Recurse fixture", sandbox_permissions: WS, justification: "x" })).decision.kind, "deny");
     assert.equal((await env.run("write", { file_path: join(env.root, "..", "x.txt"), content: "f", sandbox_permissions: WS })).decision.kind, "deny");
     assert.equal(env.modelCalls, 0);
     assert.equal(env.fallbackCalls, 0);

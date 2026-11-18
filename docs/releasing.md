@@ -1,6 +1,6 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.6`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.7`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
@@ -9,6 +9,7 @@
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
 - `.github/workflows/publish.yml`：每次 `main` push 自动检测版本。先比较整个 push 的 `before` 与当前 manifest，拒绝错误包名、非法或倒退版本；再只读查询 npmjs。当前版本已上传则跳过；当前版本高于 npmjs latest 且未上传则进入完整验证及发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
 - 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
+- `1.16.7` 修订原生审批结束后的拒绝消息：按用户拒绝、取消、审批通道不可用和无批准记录分别说明原因与下一步；保留 `DECISION_ENGINE_MANDATORY_DENY` 错误码，并附 `approvalOutcome` 分类字段。该版本代码已通过仓库内验证，尚未安装到本机 profile。
 - `1.16.6` 包含 codex-auto-review guardian 审核协议适配：精确模型使用 `outcome` 协议，普通模型保持 `action` 协议；回退档位能力不匹配时提前拒绝，设置页显示不兼容提示，连通性探针不回显模型正文。该版本代码已通过仓库内验证，尚未安装到本机 profile。
 - `1.16.5` 包含 DEC-089 的审计驱动 P1 修复：回退前校验所选模型是否支持显式 `reasoningEffort`，不支持或元数据无法核实时在 `llm.stream` 前按固定失败返回，不自动换模型、改档位或切换到其他路由，失败不缓存；沙箱权限请求按宿主契约细分——只有 `write`/`edit`/`bash`/`pwsh` 在契约满足时，与当前有效 mode 相同的请求才按 no-op 放行（`pwsh` 请求必须带非空说明，`fs`/`bash` 单独出现的空说明按宿主行为视同省略）；非法枚举或类型、缺失或非法说明、`danger-full-access` 下请求 `workspace-write` 这类不更宽的请求归 `invalid_request` 并在本地拒绝；真正严格更宽的请求归 `privileged` 交宿主审批；有效 mode 无法核实时保守归 `privileged`，不判无效也不放宽。该版本代码只经过仓库内验证，尚未安装到本机 profile。
 - `1.16.4` 包含 DEC-088：`write`/`edit`/`bash`/`pwsh` 携带与当前有效沙箱相同的 `sandbox_permissions` 时不再被误判为提权，宿主对这一组合本就不升级权限、也不发起审批；拒绝提示补一行实际触发约束，错误码与审计字段不变。更宽、更窄、无效或无法核实的请求，以及其他工具携带的同名字段，仍按原有保守规则处理。

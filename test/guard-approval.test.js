@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { evaluateMandatoryPolicy, mandatoryApprovalDecision } from "../lib/guard/policy.js";
-import { guardOutcomeMessage } from "../lib/guard/messages.js";
+import { guardOutcomeMessage, approvalDeniedMessage, APPROVAL_DENIED_OUTCOMES } from "../lib/guard/messages.js";
 import { mountGuard } from "../lib/guard/listener.js";
 import { effectivePointModes } from "../lib/index.js";
 import { ToleranceCalibrator } from "../lib/tolerance.js";
@@ -152,6 +152,51 @@ test("同一挂载实例 never → ask → never 立即更新，不复用旧拒�
     assert.ok(fixture.guard(third.exec));
     assert.equal(fixture.modelCalls, 0);
     assert.equal(fixture.fallbackCalls, 0);
+    assert.equal(fixture.sideEffects, 0);
+  } finally { await fixture.cleanup(); }
+});
+
+test("审批结局四档文案互不相同，未登记结局归一到 unknown", () => {
+  const parsed = APPROVAL_DENIED_OUTCOMES.map((outcome) => approvalDeniedMessage(outcome));
+  assert.deepEqual(parsed.map((item) => item.outcome), ["rejected", "cancelled", "unavailable", "unknown"]);
+  assert.equal(new Set(parsed.map((item) => item.reason)).size, 4, "四档不能共用一句话");
+  assert.match(approvalDeniedMessage("rejected").reason, /拒绝/);
+  assert.match(approvalDeniedMessage("cancelled").reason, /取消/);
+  assert.match(approvalDeniedMessage("unavailable").reason, /通道不可用/);
+  assert.match(approvalDeniedMessage("unknown").reason, /没有用户批准记录/);
+  assert.match(approvalDeniedMessage("unknown").reason, /模型或回退策略不能覆盖/);
+  for (const item of parsed) assert.ok(item.displayReason.en.length > 0);
+  // 宿主可能给出未登记值（含 policy_auto_rejected 与空值）：一律落 unknown，
+  // 不能把原始字符串拼进文案。
+  for (const unlisted of ["allowed-once", "policy_auto_rejected", undefined, null, ""]) {
+    assert.equal(approvalDeniedMessage(unlisted).outcome, "unknown");
+  }
+});
+
+test("拒绝、取消、通道不可用给出不同的模型可见原因，错误码保持兼容", async () => {
+  const fixture = await createGuardFixture({ approval: "ask", config: { guardFallback: "allow" } });
+  try {
+    const { decision, exec } = await fixture.run("pwsh", destructiveCall);
+    assert.equal(decision.kind, "ask");
+    // 还没有任何审批事件：说明「没有批准记录」，而不是「用户拒绝」。
+    const pending = fixture.guard(exec);
+    assert.equal(pending.info.code, "DECISION_ENGINE_MANDATORY_DENY");
+    assert.equal(pending.info.approvalOutcome, "unknown");
+    assert.equal(pending.reason, approvalDeniedMessage("unknown").reason);
+    const seen = new Set([pending.reason]);
+    for (const [index, outcome] of ["rejected", "cancelled", "unavailable"].entries()) {
+      const id = `native-${outcome}`;
+      fixture.approvalEvents.push(
+        { type: "approval/asked", seq: 10 + index * 2, data: { id, callId: exec.callId, toolName: "pwsh" } },
+        { type: "approval/decided", seq: 11 + index * 2, data: { id, outcome } },
+      );
+      const denied = fixture.guard(exec);
+      assert.equal(denied.info.code, "DECISION_ENGINE_MANDATORY_DENY");
+      assert.equal(denied.info.approvalOutcome, outcome);
+      assert.equal(denied.reason, approvalDeniedMessage(outcome).reason);
+      seen.add(denied.reason);
+    }
+    assert.equal(seen.size, 4, "四种结局不能共用同一句话");
     assert.equal(fixture.sideEffects, 0);
   } finally { await fixture.cleanup(); }
 });

@@ -1,61 +1,94 @@
 # dsh-decision-engine
 
-Published fork: **`@leonhardthust/dsh-decision-engine`**. Based on the MIT-licensed upstream by [zuosus](https://github.com/zuosus/dsh-decision-engine). Do not enable both packages at once. See [publishing and installation](docs/releasing.md).
+面向 DeepSeek Harness 的决策层插件。主模型调用工具、路由模型、分派任务或继续轮次前，插件可以先调用一个决策模型做结构化判断。
 
-![dsh-decision-engine — decision engine for DeepSeek Harness](docs/assets/hero.jpeg)
+本仓库发布的 npm 包是 `@leonhardthust/dsh-decision-engine`，基于 [zuosus/dsh-decision-engine](https://github.com/zuosus/dsh-decision-engine) 的 MIT 代码。不要同时启用上游原包和本分支。
 
-**Free decision model usage provided**
+## Quick Start（快速开始）
 
-[website](https://dsh.zuos.us/dsh-decision-engine/) ·
-[config.example.yml](config.example.yml) · [DECISIONS.md](DECISIONS.md)
+### 1. 安装
 
-[简体中文](./README.zh.md)
+在 DeepSeek Harness 的插件管理器中安装：
 
-A judgement layer for DeepSeek Harness: a cheap decision model judges before the
-main model acts.
+```text
+@leonhardthust/dsh-decision-engine
+```
 
-## Privacy
+也可以指定版本：
 
-This fork no longer includes anonymous usage reporting: no install IDs, installation events, or daily heartbeats are generated, and legacy `analytics.json` files are not read or updated. The old `telemetryLevel` / `telemetryEndpoint` settings have no effect. Local decision history and statistics remain available; user-configured decision-provider calls and the opt-in free-model configuration endpoint are unchanged.
+```text
+@leonhardthust/dsh-decision-engine@1.17.0
+```
 
-## Features
+### 2. 启用并配置
 
-**Eight decision points**
+1. 在插件管理器中启用插件。
+2. 打开插件配置页，选择决策服务并填写对应的 API Key。
+3. 先使用 `observe` 观察决策记录，确认结果符合预期后，再把需要拦截的决策点改为 `enforce`。
+4. 保存配置并重新开始一次会话。
 
-- tool authorization
-- model routing
-- delegation
-- compaction
-- turn continuation
-- retrieval necessity
-- skill selection
-- COT translation gate
+插件默认不启用拦截。`observe` 只记录判断，不提供拦截保护。
 
-**Modes**: off · observe · enforce
+### 3. 第一次使用
 
-**Providers**: system one · bamboonode · 硅基流动 SiliconFlow (CN / Global) ·
-Alibaba Bailian · TokenHub · Perplexity · OpenRouter · custom base URL
+完成配置后直接发起普通对话，插件会在已启用的决策点记录判断结果。可在 **决策历史** 和 **统计与对比** 页面查看记录、缓存命中和决策结果。
 
-**Safety level (how often to ask)**: Don't ask · Ask less · Default · Ask more
-(none of the four changes permission-mandated approval or denial)
+建议先启用一个决策点验证：
 
-**UI**: config page with collapsible sections · Decisions tab · stats ·
-readable approval card · sharded decision logs (by date / session / workspace) with retention
+- `authorize`：工具授权
+- `route`：模型路由
+- `delegate`：子任务分派
+- `compact`：上下文压缩
+- `turnStop`：是否继续下一轮
+- `retrieval`：是否需要检索
+- `skillPick`：技能选择
+- `cotTranslate`：思维链翻译
 
-| Config page | Decisions tab |
-|---|---|
-| ![config page](docs/assets/config-page.png) | ![decisions tab](docs/assets/decisions-tab.png) |
+## 主要功能
 
-> Screenshots predate the collapsible-section layout (DEC-051).
+- 八个可独立开关的决策点。
+- 三种运行模式：`off`、`observe`、`enforce`。
+- 精确缓存、只读工具快速放行和状态裁剪，减少重复决策请求。
+- 决策历史、统计信息、可读的审批卡正文，以及按日期、会话或工作区拆分的日志。
+- 安全档位：不问、少问、默认、多问。档位只影响软性审查频率，不会代替权限强制的人工批准或拒绝。
+- 支持 system one、bamboonode、硅基流动（国内 / 国际）、阿里云百炼、TokenHub、Perplexity、OpenRouter 和自定义 Base URL。
 
-**Token saving**: exact cache · read-only tools bypass · state trimming
+## 安全边界
 
-**Safety layers**: trusted host context → tool effects → mandatory permissions → model advisory → soft review tolerance → host outcome audit.
-Unknown high-impact calls fail closed; Auto still runs decision review. Soft asks use a selected host model (including reasoning effort), the session model, allow, or deny.
-Neither model review nor the allow fallback can replace mandatory approval.
+安全判断按以下顺序处理：
 
-See the [security revision and verification notes](docs/security-revision.md). The plugin remains disabled by default; observation mode does not enforce protection.
+1. 读取可信的宿主上下文。
+2. 识别工具副作用和目标范围。
+3. 先执行强制权限策略。
+4. 再调用决策模型做软性审查。
+5. 根据安全档位处理软性询问。
+6. 记录宿主最终审批和执行结果。
 
-## License
+未知的高影响操作默认保持拒绝或继续审批。模型裁决和回退策略都不能覆盖强制权限约束。
+
+工作区或临时目录中的单文件删除只有在宿主确认执行目录、命令形状、目标路径和沙箱边界后，才会交给宿主沙箱执行。路径、目标数量、命令参数或宿主证据不明确时，仍需审批。
+
+同树中可接续的子代理消息会在宿主 guard 注册后直接交给宿主处理。树外、一次性、诊断或无法核验的目标仍需审批。
+
+## 隐私
+
+本分支不再生成匿名安装 ID、安装事件或每日心跳，也不读取或更新旧的 `analytics.json`。决策历史和统计保存在本地。插件只会向你配置的决策服务发送请求。
+
+## 配置与文档
+
+- [配置示例](config.example.yml)
+- [发布与安装说明](docs/releasing.md)
+- [安全修订与验证说明](docs/security-revision.md)
+- [项目决策记录](DECISIONS.md)
+
+## 开发与验证
+
+```powershell
+vp install --frozen-lockfile
+vp run verify
+vp run verify:guard
+```
+
+## 许可证
 
 MIT

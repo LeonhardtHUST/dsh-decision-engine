@@ -3600,6 +3600,197 @@ test("宿主模型库不可用：说明原因，手填框仍然可用", async ()
   assert.equal(manual.length, 3, "目录不可用时三格仍应是可手填的 input");
 });
 
+/**
+ * 找到「回退模型」那三格里第 index 个手填框（0 提供方 / 1 模型 / 2 档位）。
+ * 三格共用同一个 placeholder，所以只能按顺序取。
+ */
+function fallbackManualInput(tree, index) {
+  const inputs = [];
+  (function walk(node) {
+    if (node === null || node === undefined || typeof node !== "object") return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === "input" && node.props.placeholder === "也可手填") inputs.push(node);
+    walk(node.children);
+  })(tree);
+  return inputs[index];
+}
+
+test("回退档位不在已查明的模型能力里：内联告警、列出支持档位，且不清空草稿值", async () => {
+  const { tree, text } = await render(stateWith({}), {
+    slots: {
+      [SLOTS.decisions]: decisionsFixture,
+      // 换过模型的现场：provider/model 已改成 m1，旧 effort "off" 仍留在草稿里。
+      5: draftWith({
+        guardFallback: "model",
+        guardFallbackProvider: "primary",
+        guardFallbackModel: "m1",
+        guardFallbackReasoningEffort: "off",
+      }),
+      [SLOTS.guardCatalog]: guardCatalogFixture(),
+    },
+  });
+
+  assert.ok(text.includes("不在该模型支持的档位里"), "档位不受支持时应出现内联告警");
+  assert.ok(text.includes("（low / high）"), `告警应列出宿主给出的支持档位，实际：${text}`);
+  assert.ok(text.includes("不会自动改动"), "必须说明不会自动改 provider/model/effort");
+  assert.equal(
+    text.includes("推荐档位 low"),
+    false,
+    "普通模型不该显示 codex-auto-review 的推荐档位",
+  );
+
+  // 草稿值保持可见、未被静默清空：档位手填框与下拉都还是 "off"。
+  const effortInput = fallbackManualInput(tree, 2);
+  assert.ok(effortInput !== undefined, "缺少档位手填框");
+  assert.equal(effortInput.props.value, "off", "旧 effort 必须保留在框里");
+  const effortSelect = findNode(
+    tree,
+    (node) => node.type === "select" && node.props["aria-label"] === "回退推理档位目录",
+  );
+  assert.ok(effortSelect !== null, "缺少档位下拉");
+  assert.equal(effortSelect.props.value, "off", "下拉也应保留旧值（以「当前值」项显示）");
+  assert.ok(
+    (effortSelect.children ?? []).some(
+      (child) => child?.type === "option" && child.props.value === "off",
+    ),
+    "旧值不在宿主目录里时，下拉要保留它而不是吞掉",
+  );
+});
+
+test("回退档位受支持时不告警", async () => {
+  const { text } = await render(stateWith({}), {
+    slots: {
+      [SLOTS.decisions]: decisionsFixture,
+      5: draftWith({
+        guardFallback: "model",
+        guardFallbackProvider: "primary",
+        guardFallbackModel: "m1",
+        guardFallbackReasoningEffort: "low",
+      }),
+      [SLOTS.guardCatalog]: guardCatalogFixture(),
+    },
+  });
+  assert.equal(text.includes("不在该模型支持的档位里"), false, "受支持的档位不应告警");
+});
+
+test("codex-auto-review：推荐 low，并说明 off 不是关闭自动审查", async () => {
+  const { text } = await render(stateWith({}), {
+    slots: {
+      [SLOTS.decisions]: decisionsFixture,
+      5: draftWith({
+        guardFallback: "model",
+        guardFallbackProvider: "codex-proxy",
+        guardFallbackModel: "codex-auto-review",
+        guardFallbackReasoningEffort: "off",
+      }),
+      [SLOTS.guardCatalog]: {
+        available: true,
+        providers: [
+          {
+            id: "codex-proxy",
+            name: "Codex",
+            models: [
+              {
+                id: "codex-auto-review",
+                name: "Codex Auto Review",
+                reasoningEfforts: ["low", "medium", "high", "xhigh", "max"].map((id) => ({
+                  id,
+                  name: id.toUpperCase(),
+                })),
+              },
+            ],
+          },
+        ],
+        unavailableReason: "",
+        status: "ok",
+      },
+    },
+  });
+  assert.ok(text.includes("不在该模型支持的档位里"));
+  assert.ok(text.includes("推荐档位 low"), "codex-auto-review 应提示官方推荐 low");
+  assert.ok(text.includes("off 不是关闭自动审查"), "要说明 off 不等于关闭自动审查");
+  assert.ok(text.includes("（low / medium / high / xhigh / max）"), "应列出该模型实际支持的档位");
+});
+
+test("能力未知（目录未加载/不可用/没补到档位）时不判定兼容，也不误报", async () => {
+  const unknownCatalogs = [
+    // 目录还没加载：槽位不注入，默认 null。
+    undefined,
+    { available: false, providers: [], unavailableReason: "host-model-catalog-unavailable", status: "unavailable" },
+    // 目录在、但该模型还没补到档位（初始目录的 reasoningEfforts 是空数组）。
+    { available: true, providers: [{ id: "primary", name: "Primary", models: [{ id: "m1", name: "Model One", reasoningEfforts: [] }] }], status: "ok" },
+    // 目录里根本没有这个模型（手填的自建服务 / 新模型）。
+    { available: true, providers: [{ id: "primary", name: "Primary", models: [{ id: "other", name: "Other", reasoningEfforts: [{ id: "low", name: "Low" }] }] }], status: "ok" },
+  ];
+  for (const catalog of unknownCatalogs) {
+    const slots = {
+      [SLOTS.decisions]: decisionsFixture,
+      5: draftWith({
+        guardFallback: "model",
+        guardFallbackProvider: "primary",
+        guardFallbackModel: "m1",
+        guardFallbackReasoningEffort: "off",
+      }),
+    };
+    if (catalog !== undefined) slots[SLOTS.guardCatalog] = catalog;
+    const { text } = await render(stateWith({}), { slots });
+    assert.equal(
+      text.includes("不在该模型支持的档位里"),
+      false,
+      `能力未知时不应断言不兼容：${JSON.stringify(catalog)}`,
+    );
+    assert.equal(
+      text.includes("档位受支持"),
+      false,
+      "能力未知时也不应声称兼容（不能把查不到读成支持）",
+    );
+  }
+});
+
+test("fallbackEffortNotice：纯函数口径——未知返回 null，已知才给结论", async () => {
+  const { i18n } = await render(stateWith({}));
+  const known = {
+    available: true,
+    providers: [
+      {
+        id: "primary",
+        name: "Primary",
+        models: [{ id: "m1", name: "Model One", reasoningEfforts: [{ id: "low", name: "Low" }, { id: "high", name: "High" }] }],
+      },
+    ],
+  };
+  const base = { provider: "primary", model: "m1" };
+  assert.equal(i18n.fallbackEffortNotice({ catalog: null, ...base, effort: "off" }), null);
+  assert.equal(
+    i18n.fallbackEffortNotice({ catalog: { available: false, providers: [] }, ...base, effort: "off" }),
+    null,
+  );
+  assert.equal(
+    i18n.fallbackEffortNotice({
+      catalog: { available: true, providers: [{ id: "primary", models: [{ id: "m1", reasoningEfforts: [] }] }] },
+      ...base,
+      effort: "off",
+    }),
+    null,
+  );
+  // 没有显式档位 / provider/model 不完整：不判定。
+  assert.equal(i18n.fallbackEffortNotice({ catalog: known, ...base, effort: "" }), null);
+  assert.equal(i18n.fallbackEffortNotice({ catalog: known, provider: "primary", model: "", effort: "off" }), null);
+  assert.deepEqual(
+    i18n.fallbackEffortNotice({ catalog: known, ...base, effort: "low" }),
+    { state: "supported", effort: "low", efforts: ["low", "high"] },
+  );
+  assert.deepEqual(
+    i18n.fallbackEffortNotice({ catalog: known, ...base, effort: "off" }),
+    { state: "unsupported", effort: "off", efforts: ["low", "high"], guardian: false },
+  );
+  // 推荐文案只认 exact model；同名仍是同一 model 才显示，别的模型不带推荐。
+  assert.equal(
+    i18n.fallbackEffortNotice({ catalog: known, ...base, effort: "off" }).guardian,
+    false,
+  );
+});
+
 test("guardModelsPath：只在选定 provider+model 时才带 query", async () => {
   const { i18n } = await render(stateWith({}));
   assert.equal(i18n.guardModelsPath("", ""), "/guard-models");
@@ -3701,6 +3892,20 @@ test("宿主模型库：补档位失败保留目录，只标 effortsUnavailable"
   assert.deepEqual(kept.providers, previous.providers, "目录必须原样保留（清空会让已选项消失）");
 });
 
+test("宿主模型库：补档位失败时告警判断保持未知，不消费旧档位清单", async () => {
+  const { i18n } = await render(stateWith({}));
+  const previous = guardCatalogFixture();
+  const kept = i18n.reduceGuardCatalog(
+    previous,
+    { available: false, providers: [] },
+    { withQuery: true, provider: "primary", model: "m1" },
+  );
+  assert.equal(
+    i18n.fallbackEffortNotice({ catalog: kept, provider: "primary", model: "m1", effort: "off" }),
+    null,
+    "补档位查询失败时不能用保留的旧清单判断兼容性",
+  );
+});
 test("守卫关闭时：工具授权三态禁用，且首句说明没有拦截保护", async () => {
   const { tree, text } = await render(stateWith({ enabled: false }), {
     slots: { [SLOTS.decisions]: decisionsFixture },

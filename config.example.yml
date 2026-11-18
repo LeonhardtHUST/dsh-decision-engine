@@ -393,6 +393,19 @@ guardPolicyMode: enforce
 # allow   跳过软审查，仍不可覆盖 mandatory deny / requires_approval
 # deny    阻止软审查请求
 # 指定模型不可用、超时、响应非法一律拒绝，不再嵌套回退成 allow。
+#
+# 用 codex-auto-review 做审查时照着填（详见 docs/codex-auto-review.md）：
+#   guardFallback: model
+#   guardFallbackProvider: codex-proxy        # 本机路由别名，不是判断依据
+#   guardFallbackModel: codex-auto-review     # 按这个 exact model id 启用 guardian 协议
+#   guardFallbackReasoningEffort: low         # 官方 guardian 首选；留空=不发送该字段
+#
+# 档位必须是该模型在该路由上声明过的档位。本机 codex-auto-review 声明
+# low/medium/high/xhigh/max，没有 off：写 off 会在调用模型前被判不支持
+# （UNSUPPORTED_REASONING_EFFORT），本次审查按拒绝处理。插件不会替你改
+# provider、model 或档位。off 是推理档位，不是关闭自动审查的开关；
+# 要少问改 tolerance，要不参与关 pointAuthorize。
+# 官方说明：https://alignment.openai.com/auto-review/
 guardFallback: session
 guardFallbackProvider: ""
 guardFallbackModel: ""

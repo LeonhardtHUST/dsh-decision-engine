@@ -106,6 +106,17 @@ const baseConfig = (effort = "") =>
   + "guardFallbackModel: fixture-model\n"
   + (effort.length > 0 ? `guardFallbackReasoningEffort: ${effort}\n` : "");
 
+/**
+ * Codex guardian 路由：provider 是用户自定义别名，协议只能由 exact model id
+ * 决定，所以这里刻意不用 `codex-proxy`。
+ */
+const codexConfig = (effort = "") =>
+  "enabled: true\n"
+  + "guardFallback: model\n"
+  + "guardFallbackProvider: user-alias\n"
+  + "guardFallbackModel: codex-auto-review\n"
+  + (effort.length > 0 ? `guardFallbackReasoningEffort: ${effort}\n` : "");
+
 test("连接性测试对不支持的显式档位给固定可操作提示且零stream", async (t) => {
   const mod = await loadIndexModule(t);
   if (mod === undefined) return;
@@ -167,6 +178,11 @@ test("连接性测试对受支持的显式档位沿用同一信号与原始route
     assert.equal(request.reasoningEffort, "max", "不能静默换成别的档位");
     assert.equal(request.signal, resolveSignal, "能力预检与真实请求必须共享同一个超时信号");
     assert.equal(request.purpose, "decision-engine-connectivity");
+    // 普通模型回归：仍是 pong 探针，不注入 guardian 的 system，也不抬高输出预算。
+    assert.equal(Object.hasOwn(request, "system"), false, "普通模型不能带上守护 system");
+    assert.equal(request.maxTokens, 16);
+    assert.equal(request.messages[0].content[0].text, "Reply with the single word: pong");
+    assert.match(fallback.summary, /响应: pong/);
   } finally {
     env.restore();
   }
@@ -228,6 +244,181 @@ test("连接性测试在无显式档位时不查能力、不挑最小档位，�
     assert.equal(data.ok, true);
     assert.equal(resolved, 0, "没有显式档位时不应该为了预检去查能力");
     assert.equal(Object.hasOwn(request, "reasoningEffort"), false, "不能替调用方补一个档位");
+  } finally {
+    env.restore();
+  }
+});
+
+test("连接性测试对 Codex guardian 发送审查协议 system、解析 outcome 且不返显 rationale", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  const canary = "private-rationale-canary";
+  let request;
+  const env = setup(mod, {
+    llm: {
+      async resolveModelInfo(provider, model) {
+        assert.equal(provider, "user-alias");
+        assert.equal(model, "codex-auto-review");
+        return modelInfo(provider, model, ["low", "medium", "high"]);
+      },
+      stream(options) {
+        request = options;
+        return (async function* () {
+          yield { type: "text-delta", text: `{"outcome":"allow","risk_level":"low","rationale":"${canary}"}` };
+          yield { type: "finish", reason: { kind: "stop" } };
+        })();
+      },
+    },
+    configText: codexConfig("low"),
+  });
+  try {
+    const data = await env.click();
+    assert.equal(data.ok, true, `guardian 探针应通过：${JSON.stringify(data)}`);
+    const fallback = data.results.find((item) => item.key === "fallback");
+    assert.equal(fallback.ok, true);
+    assert.equal(request.provider, "user-alias", "provider 别名原样透传，不换成 codex-proxy");
+    assert.equal(request.model, "codex-auto-review");
+    assert.equal(request.reasoningEffort, "low", "不能静默换档位");
+    assert.equal(request.purpose, "decision-engine-connectivity");
+    // 与回退审查同一份 system，且要求 outcome 形状。
+    assert.match(request.system, /"outcome"/);
+    assert.match(request.system, /"risk_level"/);
+    assert.match(request.system, /"user_authorization"/);
+    // guardian 的 JSON 放不进 16 token。
+    assert.ok(request.maxTokens >= 256, `guardian 探针的输出预算过小：${request.maxTokens}`);
+    assert.deepEqual(request.tools, []);
+    const prompt = request.messages[0].content[0].text;
+    assert.match(prompt, /Connectivity fixture, not a real tool call/);
+    assert.match(prompt, /"outcome":"allow"/);
+    assert.doesNotMatch(prompt, /pwsh|write|edit|file_path|command/, "探针不能带真实工具内容");
+    assert.match(fallback.summary, /守护协议: codex-guardian/);
+    assert.match(fallback.summary, /outcome: allow/);
+    assert.match(fallback.summary, /risk_level: low/);
+    assert.ok(!JSON.stringify(data).includes(canary), "rationale 是模型自由文本，不得返显");
+  } finally {
+    env.restore();
+  }
+});
+
+test("连接性测试按 guardian 回答的 outcome 显示 deny，不带多余键时 risk_level 标未声明", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  let request;
+  const env = setup(mod, {
+    llm: {
+      async resolveModelInfo(provider, model) { return modelInfo(provider, model, ["low"]); },
+      stream(options) {
+        request = options;
+        return (async function* () {
+          // 最小合法形状：只有 outcome，没有 risk_level / rationale。
+          yield { type: "text-delta", text: "{\"outcome\":\"deny\"}" };
+          yield { type: "finish", reason: { kind: "stop" } };
+        })();
+      },
+    },
+    configText: codexConfig("low"),
+  });
+  try {
+    const data = await env.click();
+    const fallback = data.results.find((item) => item.key === "fallback");
+    assert.equal(data.ok, true, `guardian 的 deny 也是合法回答：${JSON.stringify(data)}`);
+    assert.equal(fallback.ok, true, "deny 只说明模型做出了审查结论，不是连通性故障");
+    assert.equal(request.system.includes("\"outcome\""), true);
+    assert.match(fallback.summary, /守护协议: codex-guardian/);
+    assert.match(fallback.summary, /outcome: deny/, "按模型实际 outcome 显示，不能擅自改成 allow");
+    assert.match(fallback.summary, /risk_level: 未声明/);
+  } finally {
+    env.restore();
+  }
+});
+
+test("Codex guardian 回答不合协议或没有正常结束时给固定诊断，不回显正文", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  const canary = "private-guardian-canary";
+  const scenarios = [
+    { name: "prose", text: `allow ${canary}`, finish: "stop", expected: /不是单个 guardian JSON 对象/ },
+    { name: "fence", text: `\`\`\`json\n{"outcome":"allow"}\n\`\`\``, finish: "stop", expected: /不是单个 guardian JSON 对象/ },
+    { name: "action-mix", text: `{"action":"allow","rationale":"${canary}"}`, finish: "stop", expected: /不是单个 guardian JSON 对象/ },
+    { name: "truncated", text: `{"outcome":"allow","rationale":"${canary}"}`, finish: "length", expected: /没有以正常结束（stop）返回 guardian JSON/ },
+  ];
+  for (const scenario of scenarios) {
+    let request;
+    const env = setup(mod, {
+      llm: {
+        async resolveModelInfo(provider, model) { return modelInfo(provider, model, ["low"]); },
+        stream(options) {
+          request = options;
+          return (async function* () {
+            yield { type: "text-delta", text: scenario.text };
+            yield { type: "finish", reason: { kind: scenario.finish } };
+          })();
+        },
+      },
+      configText: codexConfig("low"),
+    });
+    try {
+      const data = await env.click();
+      const fallback = data.results.find((item) => item.key === "fallback");
+      assert.equal(data.ok, false, `${scenario.name} 不能报绿`);
+      assert.equal(fallback.ok, false);
+      assert.match(fallback.summary, /未通过协议解析/);
+      assert.match(fallback.summary, scenario.expected);
+      assert.equal(request.system.includes("outcome"), true, "仍然走 guardian 协议");
+      assert.ok(!JSON.stringify(data).includes(canary), `${scenario.name} 不得回显模型正文`);
+    } finally {
+      env.restore();
+    }
+  }
+});
+
+test("Codex guardian 探针传输异常不回显错误正文", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  const canary = "private-guardian-transport-canary";
+  const env = setup(mod, {
+    llm: {
+      async resolveModelInfo(provider, model) { return modelInfo(provider, model, ["low"]); },
+      stream() { throw new Error(canary); },
+    },
+    configText: codexConfig("low"),
+  });
+  try {
+    const data = await env.click();
+    const fallback = data.results.find((item) => item.key === "fallback");
+    assert.equal(data.ok, false);
+    assert.equal(fallback.ok, false);
+    assert.match(fallback.summary, /guardian 审查探针未完成/);
+    assert.doesNotMatch(JSON.stringify(data), new RegExp(canary));
+  } finally {
+    env.restore();
+  }
+});
+test("普通模型的 pong 探针仍接受 length 截断，行为不因 guardian 分支改变", async (t) => {
+  const mod = await loadIndexModule(t);
+  if (mod === undefined) return;
+  let request;
+  const env = setup(mod, {
+    llm: {
+      async resolveModelInfo(provider, model) { return modelInfo(provider, model, ["high"]); },
+      stream(options) {
+        request = options;
+        return (async function* () {
+          yield { type: "text-delta", text: "pon" };
+          yield { type: "finish", reason: { kind: "length" } };
+        })();
+      },
+    },
+    configText: baseConfig("high"),
+  });
+  try {
+    const data = await env.click();
+    const fallback = data.results.find((item) => item.key === "fallback");
+    assert.equal(data.ok, true);
+    assert.equal(fallback.ok, true, "普通模型 16 token 截断仍算连通");
+    assert.match(fallback.summary, /finish: length/);
+    assert.match(fallback.summary, /响应: pon/);
+    assert.equal(Object.hasOwn(request, "system"), false);
   } finally {
     env.restore();
   }

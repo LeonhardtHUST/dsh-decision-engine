@@ -291,3 +291,163 @@ test("能力查询期间取消时保留cancel原因，且不启动stream", async
   assert.equal(streams, 0);
   assert.ok(!JSON.stringify(result).includes("private-abort-canary"));
 });
+
+// ---- Codex guardian 回答协议（exact model id codex-auto-review）------------
+
+const codexRoute = (effort) => ({
+  guardFallback: "model",
+  guardFallbackProvider: "user-alias",
+  guardFallbackModel: "codex-auto-review",
+  ...(effort ? { guardFallbackReasoningEffort: effort } : {}),
+  timeoutMs: 100,
+});
+const codexInfo = (provider = "user-alias", model = "codex-auto-review") => capabilities(provider, model, ["low", "medium", "high"]);
+const guardianStream = (text, finish = "stop") => ({
+  async *stream() {
+    yield { type: "text-delta", text };
+    yield { type: "finish", reason: { kind: finish } };
+  },
+});
+
+test("Codex 回退的 off 档仍在 stream 前拒绝，零请求且不回显元数据", async () => {
+  let streams = 0;
+  const llm = {
+    resolveModelInfo: async () => codexInfo(),
+    async *stream() { streams += 1; throw new Error("must not stream"); },
+  };
+  const result = await reviewWithFallback({ ...base, config: codexRoute("off"), llm });
+  assert.equal(result.kind, "deny");
+  assert.equal(result.reason, "fallback-model-incompatible");
+  assert.deepEqual(result.failure, unsupportedFailure);
+  assert.deepEqual(result.selection, { provider: "user-alias", model: "codex-auto-review", reasoningEffort: "off" });
+  assert.equal(streams, 0, "不支持的档位绝不能发出模型请求");
+  assert.ok(!JSON.stringify(result).includes("Fixture"), "不回显能力元数据");
+});
+
+test("Codex 回退在 low 档原样请求，并用 guardian 协议解析 outcome", async () => {
+  let request;
+  const llm = {
+    resolveModelInfo: async () => codexInfo(),
+    async *stream(options) {
+      request = options;
+      yield { type: "text-delta", text: '{"outcome":"allow","risk_level":"low","rationale":"private-rationale-canary"}' };
+      yield { type: "finish", reason: { kind: "stop" } };
+    },
+  };
+  const result = await reviewWithFallback({ ...base, config: codexRoute("low"), llm });
+  assert.equal(result.kind, "delegate");
+  assert.equal(result.reason, "fallback-model-allow");
+  assert.equal(request.provider, "user-alias");
+  assert.equal(request.model, "codex-auto-review");
+  assert.equal(request.reasoningEffort, "low", "档位必须原样透传，不自动改档");
+  assert.deepEqual(request.tools, []);
+  assert.match(request.system, /"outcome"/);
+  assert.match(request.system, /"user_authorization"/);
+  assert.doesNotMatch(request.system, /Return ONLY a JSON object \{"action":"allow"\}/);
+  assert.doesNotMatch(JSON.stringify(result), /private-rationale-canary/, "模型 rationale 不进入裁决结果");
+});
+
+test("Codex 回退留空档位时不查能力、交宿主默认，仍用 guardian 协议", async () => {
+  let resolved = 0;
+  let request;
+  const llm = {
+    resolveModelInfo: async () => { resolved += 1; return codexInfo(); },
+    async *stream(options) {
+      request = options;
+      yield { type: "text-delta", text: '{"outcome":"allow"}' };
+      yield { type: "finish", reason: { kind: "stop" } };
+    },
+  };
+  const result = await reviewWithFallback({ ...base, config: codexRoute(""), llm });
+  assert.equal(result.kind, "delegate");
+  assert.equal(resolved, 0, "无显式档位时不应为了挑默认值去查能力");
+  assert.equal(Object.hasOwn(request, "reasoningEffort"), false);
+  assert.match(request.system, /"outcome"/);
+});
+
+test("会话路由选中 Codex 模型时同样走 guardian，provider 别名无关", async () => {
+  let request;
+  const codexSession = {
+    id: "fixture",
+    requestHeader: () => ({ config: { provider: "renamed-route", model: "codex-auto-review", reasoningEffort: "medium" } }),
+  };
+  const llm = {
+    resolveModelInfo: async () => codexInfo("renamed-route", "codex-auto-review"),
+    async *stream(options) {
+      request = options;
+      yield { type: "text-delta", text: '{"outcome":"deny"}' };
+      yield { type: "finish", reason: { kind: "stop" } };
+    },
+  };
+  const result = await reviewWithFallback({ ...base, session: codexSession, llm });
+  assert.equal(result.kind, "deny");
+  assert.equal(result.reason, "fallback-model-deny");
+  assert.equal(request.reasoningEffort, "medium");
+  assert.match(request.system, /"user_authorization"/);
+});
+
+test("同名 provider 的普通模型仍用 action 协议，guardian 形状按 schema 拒绝", async () => {
+  let request;
+  const plainConfig = { ...codexRoute("low"), guardFallbackModel: "gpt-6-sol" };
+  const llm = {
+    resolveModelInfo: async () => capabilities("user-alias", "gpt-6-sol", ["low"]),
+    async *stream(options) {
+      request = options;
+      yield { type: "text-delta", text: '{"action":"allow"}' };
+      yield { type: "finish", reason: { kind: "stop" } };
+    },
+  };
+  const ok = await reviewWithFallback({ ...base, config: plainConfig, llm });
+  assert.equal(ok.kind, "delegate");
+  assert.match(request.system, /Return ONLY a JSON object \{"action":"allow"\}/);
+  assert.doesNotMatch(request.system, /risk_level|outcome/);
+
+  const rejected = await reviewWithFallback({
+    ...base,
+    config: plainConfig,
+    llm: { resolveModelInfo: async () => capabilities("user-alias", "gpt-6-sol", ["low"]), ...guardianStream('{"outcome":"allow"}') },
+  });
+  assert.equal(rejected.kind, "deny");
+  assert.deepEqual(rejected.failure, { stage: "schema", code: "INVALID_SCHEMA", httpStatus: null, finishReason: null });
+});
+
+test("Codex 回答不合协议时按 parse/schema 分类拒绝，失败不放行", async () => {
+  const cases = [
+    ["allow", "parse", "INVALID_JSON"],
+    ['```json\n{"outcome":"allow"}\n```', "parse", "INVALID_JSON"],
+    ['{"action":"allow"}', "schema", "INVALID_SCHEMA"],
+    ['{"outcome":"allow","risk_level":"extreme"}', "schema", "INVALID_SCHEMA"],
+    ['{"outcome":"allow","user_authorization":1}', "schema", "INVALID_SCHEMA"],
+    ['{"outcome":"allow","extra":true}', "schema", "INVALID_SCHEMA"],
+  ];
+  for (const [text, stage, code] of cases) {
+    const llm = { resolveModelInfo: async () => codexInfo(), ...guardianStream(text) };
+    const result = await reviewWithFallback({ ...base, config: codexRoute("low"), llm });
+    assert.equal(result.kind, "deny", `不能因为 ${text} 放行`);
+    assert.equal(result.reason, "fallback-review-failed");
+    assert.deepEqual(result.failure, { stage, code, httpStatus: null, finishReason: null });
+    assert.doesNotMatch(JSON.stringify(result), /private-.*-canary/);
+  }
+
+  const truncated = await reviewWithFallback({
+    ...base,
+    config: codexRoute("low"),
+    llm: { resolveModelInfo: async () => codexInfo(), ...guardianStream('{"outcome":"allow"}', "max-tokens") },
+  });
+  assert.equal(truncated.kind, "deny");
+  assert.deepEqual(truncated.failure, { stage: "finish", code: "NON_STOP_FINISH", httpStatus: null, finishReason: "max-tokens" });
+});
+
+test("Codex 路由同样受 mandatory 约束，不查能力也不请求模型", async () => {
+  let resolved = 0;
+  let streams = 0;
+  const llm = {
+    resolveModelInfo: async () => { resolved += 1; return codexInfo(); },
+    stream() { streams += 1; throw new Error("must not stream"); },
+  };
+  const result = await reviewWithFallback({ ...base, config: codexRoute("low"), mandatory: { status: "requires_approval" }, llm });
+  assert.equal(result.kind, "deny");
+  assert.equal(result.reason, "mandatory-policy-protected");
+  assert.equal(resolved, 0);
+  assert.equal(streams, 0);
+});

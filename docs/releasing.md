@@ -1,6 +1,6 @@
 # npm 发布
 
-发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.5`，公开包。
+发布目标：`@leonhardthust/dsh-decision-engine`，当前版本 `1.16.6`，公开包。
 
 本分支基于 `zuosus/dsh-decision-engine` 的 MIT 代码，保留原作者与许可证；npm scope、源码仓库、bundle 引用和浏览器主模块 / charts chunk 标识已同步为本分支身份。内部 API、样式标识和用户数据目录保留旧名称以兼容已有配置。不要同时启用原包与本 scoped fork，它们提供相同的服务与页面。
 
@@ -9,7 +9,8 @@
 - `.github/workflows/ci.yml`：main push、PR、手动运行或发布工作流复用；Ubuntu 24.04 + Node.js 24 + Vite+ 1.6.0。执行 frozen install、完整测试与接线、隔离情景、实际打包和 tarball 检查。失败不会被忽略。
 - `.github/workflows/publish.yml`：每次 `main` push 自动检测版本。先比较整个 push 的 `before` 与当前 manifest，拒绝错误包名、非法或倒退版本；再只读查询 npmjs。当前版本已上传则跳过；当前版本高于 npmjs latest 且未上传则进入完整验证及发布。多提交 push 比较整个 push 前后，不仅比较 HEAD 的父提交。
 - 后续发版只需修改 `package.json` 版本并提交到 main；无需创建 tag 或手动点运行。发布依赖检测和本次提交的完整 CI 均成功，不跳过测试。稳定版本发布到 `latest`，预发布版本自动进入 `next`。
-- 当前 `1.16.5` 包含 DEC-089 的审计驱动 P1 修复：回退前校验所选模型是否支持显式 `reasoningEffort`，不支持或元数据无法核实时在 `llm.stream` 前按固定失败返回，不自动换模型、改档位或切换到其他路由，失败不缓存；沙箱权限请求按宿主契约细分——只有 `write`/`edit`/`bash`/`pwsh` 在契约满足时，与当前有效 mode 相同的请求才按 no-op 放行（`pwsh` 请求必须带非空说明，`fs`/`bash` 单独出现的空说明按宿主行为视同省略）；非法枚举或类型、缺失或非法说明、`danger-full-access` 下请求 `workspace-write` 这类不更宽的请求归 `invalid_request` 并在本地拒绝；真正严格更宽的请求归 `privileged` 交宿主审批；有效 mode 无法核实时保守归 `privileged`，不判无效也不放宽。该版本代码只经过仓库内验证，尚未安装到本机 profile。
+- `1.16.6` 包含 codex-auto-review guardian 审核协议适配：精确模型使用 `outcome` 协议，普通模型保持 `action` 协议；回退档位能力不匹配时提前拒绝，设置页显示不兼容提示，连通性探针不回显模型正文。该版本代码已通过仓库内验证，尚未安装到本机 profile。
+- `1.16.5` 包含 DEC-089 的审计驱动 P1 修复：回退前校验所选模型是否支持显式 `reasoningEffort`，不支持或元数据无法核实时在 `llm.stream` 前按固定失败返回，不自动换模型、改档位或切换到其他路由，失败不缓存；沙箱权限请求按宿主契约细分——只有 `write`/`edit`/`bash`/`pwsh` 在契约满足时，与当前有效 mode 相同的请求才按 no-op 放行（`pwsh` 请求必须带非空说明，`fs`/`bash` 单独出现的空说明按宿主行为视同省略）；非法枚举或类型、缺失或非法说明、`danger-full-access` 下请求 `workspace-write` 这类不更宽的请求归 `invalid_request` 并在本地拒绝；真正严格更宽的请求归 `privileged` 交宿主审批；有效 mode 无法核实时保守归 `privileged`，不判无效也不放宽。该版本代码只经过仓库内验证，尚未安装到本机 profile。
 - `1.16.4` 包含 DEC-088：`write`/`edit`/`bash`/`pwsh` 携带与当前有效沙箱相同的 `sandbox_permissions` 时不再被误判为提权，宿主对这一组合本就不升级权限、也不发起审批；拒绝提示补一行实际触发约束，错误码与审计字段不变。更宽、更窄、无效或无法核实的请求，以及其他工具携带的同名字段，仍按原有保守规则处理。
 - `1.16.3` 包含 DEC-086/087：请求与协议故障不再缓存，正常模型裁决仍可复用；新增脱敏回退失败分类，不重复累计复用的历史耗时；引入上游模型平铺截图，暂缓含 D1/cron 的站点部署迁移。
 - `1.16.2` 包含 DEC-084/085：为 `send_message` 增加脱敏核验阶段与失败原因审计，补齐 sibling、child→root、深层成员和负向审批回归矩阵；通信放行条件不变。
@@ -67,7 +68,7 @@ vp run verify:release
 授权及完整验证均满足后：
 
 ```powershell
-npm publish ./release-artifacts/npm-1.16.5/leonhardthust-dsh-decision-engine-1.16.5.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
+npm publish ./release-artifacts/npm-1.16.6/leonhardthust-dsh-decision-engine-1.16.6.tgz --registry "https://registry.npmjs.org/" --access public --tag latest
 npm view @leonhardthust/dsh-decision-engine version --registry "https://registry.npmjs.org/" --json
 ```
 
@@ -75,4 +76,4 @@ npm view @leonhardthust/dsh-decision-engine version --registry "https://registry
 
 ## 安装
 
-DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.16.5`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
+DSH 插件管理中使用 `@leonhardthust/dsh-decision-engine` 或指定 `@leonhardthust/dsh-decision-engine@1.16.6`。安装和启用是另外的用户动作，发布工作流不会修改本机 DSH profile。
